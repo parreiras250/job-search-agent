@@ -1,0 +1,27 @@
+# Ambiente virtual Python
+.venv/
+venv/
+
+# Cache e arquivos compilados do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Arquivos de configuração com possíveis segredos
+.env
+.env.*
+!.env.example
+
+# Resultados de testes e ferramentas de qualidade
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Arquivos do macOS e editores
+.DS_Store
+.idea/
+.vscode/
+
+# Dados locais (mantém apenas a documentação da pasta)
+data/*
+!data/.gitkeep

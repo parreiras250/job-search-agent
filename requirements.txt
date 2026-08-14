@@ -1,0 +1,2 @@
+# O projeto usa apenas a biblioteca padrão do Python nesta primeira etapa.
+# Dependências externas serão adicionadas aqui quando forem realmente necessárias.

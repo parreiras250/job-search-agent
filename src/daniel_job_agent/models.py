@@ -95,8 +95,9 @@ class JobOpportunity:
 
     # Localização e regras básicas de elegibilidade.
     location: str
-    remote: bool
-    brazil_eligible: bool
+    # None significa que a fonte não informou ou não permitiu confirmar.
+    remote: bool | None
+    brazil_eligible: bool | None
     employment_type: str | None = None
 
     # Conteúdo estruturado fornecido pela origem da vaga. Nesta etapa nenhum

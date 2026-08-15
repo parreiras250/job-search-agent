@@ -3,6 +3,126 @@
 from .models import JobOpportunity
 
 
+def create_ingestion_demo_records() -> dict[str, list[dict[str, object]]]:
+    """Cria registros brutos fictícios em três formatos incompatíveis entre si."""
+
+    return {
+        "generic": [
+            {
+                "company": "  Aurora Metrics  ",
+                "title": " Account  Executive ",
+                "url": "https://raw.invalid/aurora/ae",
+                "location": " Remote - LATAM ",
+                "remote": "true",
+                "brazil_eligible": "true",
+                "description": "Local fictional record",
+                "base_salary": "75000",
+                "salary_currency": "USD",
+                "tools_mentioned": ["Salesforce", "Gong"],
+                "industries_mentioned": ["B2B SaaS"],
+                "years_experience_required": "5",
+            },
+            {
+                "company": "Northstar Systems",
+                "title": "Account Executive",
+                "url": "https://raw.invalid/northstar/ae",
+                "location": "Remote - US only",
+                "remote": True,
+                "brazil_eligible": False,
+                "base_salary": 90000,
+            },
+            {
+                "company": "Code Meadow",
+                "title": "Software Engineer",
+                "url": "https://raw.invalid/code/engineer",
+                "location": "Remote - LATAM",
+                "remote": True,
+                "brazil_eligible": True,
+            },
+            {
+                "company": "Missing Title Labs",
+                "title": "   ",
+                "url": "https://raw.invalid/missing/title",
+                "location": "Remote - LATAM",
+            },
+        ],
+        "greenhouse": [
+            {
+                "organization_name": "Aurora Metrics",
+                "position_name": "Account Executive",
+                "absolute_url": "https://other.invalid/aurora/account-executive",
+                "workplace": "Remote - LATAM",
+                "remote": True,
+                "brazil_eligible": True,
+                "salary": "76000",
+                "tools": ["Salesforce"],
+            },
+            {
+                "organization_name": "Orbit Leads",
+                "position_name": "SDR",
+                "absolute_url": "https://raw.invalid/orbit/sdr",
+                "workplace": "Worldwide Remote",
+                "remote": "true",
+                "brazil_eligible": "true",
+            },
+            {
+                "organization_name": "Vita Path",
+                "position_name": "Sales Executive",
+                "absolute_url": "https://raw.invalid/vita/sales",
+                "workplace": "Remote - Brazil",
+                "remote": True,
+                "brazil_eligible": True,
+                "industries": ["Healthtech"],
+            },
+            {
+                "organization_name": "Broken Salary Co",
+                "position_name": "Inside Sales",
+                "absolute_url": "https://raw.invalid/broken/salary",
+                "workplace": "Remote - LATAM",
+                "remote": True,
+                "salary": "USD 80k",
+            },
+        ],
+        "lever": [
+            {
+                "employer": "Cedar Growth",
+                "job_title": "Business Development Representative",
+                "apply_url": "https://raw.invalid/cedar/bdr",
+                "region": "Latin America",
+                "remote": "true",
+                "brazil_eligible": "true",
+                "commitment": "Contractor",
+                "stack": ["Apollo", "SalesLoft"],
+                "minimum_years": "3",
+            },
+            {
+                "employer": "Open Trail",
+                "job_title": "Sales Executive",
+                "apply_url": "https://raw.invalid/open/sales",
+                "region": "Location not disclosed",
+                "remote": True,
+                "brazil_eligible": False,
+                "compensation": "68000",
+                "currency": "USD",
+            },
+            {
+                "employer": "Bridge Commerce",
+                "job_title": "Commercial Account Manager",
+                "apply_url": "https://raw.invalid/bridge/account-manager",
+                "region": "Remote - LATAM",
+                "remote": True,
+                "brazil_eligible": True,
+                "stack": ["HubSpot"],
+            },
+            {
+                "job_title": "Account Executive",
+                "apply_url": "https://raw.invalid/missing/company",
+                "region": "Remote - LATAM",
+            },
+        ],
+    }
+
+
 def create_demo_jobs() -> list[JobOpportunity]:
     """Cria 13 vagas fictícias, incluindo uma duplicata intencional."""
 

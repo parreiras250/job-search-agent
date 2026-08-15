@@ -181,6 +181,26 @@ class ProfileScoringTests(unittest.TestCase):
         )
         self.assertEqual(decide_retention(unknown, self.profile), RetentionDecision.REVIEW)
 
+    def test_unknown_remote_is_not_treated_as_confirmed_non_remote(self) -> None:
+        unknown = evaluate_match(make_job(remote=None), self.profile)
+        confirmed_non_remote = evaluate_match(make_job(remote=False), self.profile)
+
+        self.assertTrue(any("not disclosed" in item for item in unknown.unknowns))
+        self.assertFalse(
+            any("not remote" in item for item in unknown.potential_gaps)
+        )
+        self.assertTrue(
+            any("not remote" in item for item in confirmed_non_remote.potential_gaps)
+        )
+
+    def test_unknown_brazil_eligibility_is_not_a_hard_incompatibility(self) -> None:
+        job = make_job(
+            location="Location not disclosed",
+            brazil_eligible=None,
+        )
+
+        self.assertEqual(decide_retention(job, self.profile), RetentionDecision.REVIEW)
+
     def test_profile_evaluation_preserves_manual_tracking(self) -> None:
         job = make_job()
         job.tracking.application_status = ApplicationStatus.APPLIED

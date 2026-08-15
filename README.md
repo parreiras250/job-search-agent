@@ -28,13 +28,15 @@ daniel-job-agent/
 │   └── daniel_job_agent/
 │       ├── __init__.py       # Define o pacote Python
 │       ├── demo.py           # Demonstração executável no terminal
-│       ├── demo_data.py      # Dataset local com empresas fictícias
+│       ├── demo_data.py      # Registros brutos e vagas fictícias
+│       ├── ingestion.py      # Adapters e ingestão local em lote
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
 │       ├── pipeline.py       # Processamento em lote e ranking
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
 │       └── rules.py          # Regras locais de classificação e decisão
 ├── tests/
 │   ├── test_candidate_profile.py
+│   ├── test_ingestion.py
 │   ├── test_job_opportunity.py
 │   ├── test_pipeline.py
 │   └── test_rules.py
@@ -152,6 +154,52 @@ informe ao Python onde está o código-fonte:
 PYTHONPATH=src python seu_arquivo.py
 ```
 
+## Ingestão local
+
+Ingestão é a etapa que transforma dados brutos de uma fonte em objetos
+`JobOpportunity` padronizados. Cada fonte pode chamar os mesmos dados por nomes
+diferentes, por exemplo `title`, `position_name` ou `job_title`. Um adapter conhece
+o formato de uma fonte e faz essa tradução.
+
+O projeto contém três simuladores totalmente locais:
+
+- `GenericJobAdapter`;
+- `MockGreenhouseAdapter`;
+- `MockLeverAdapter`.
+
+Os adapters fictícios não acessam Greenhouse, Lever ou qualquer serviço externo.
+Eles apenas convertem dicionários Python fornecidos localmente.
+
+```text
+raw source data
+→ adapter
+→ JobOpportunity
+→ pipeline
+→ ranking
+```
+
+Dados brutos podem ter espaços extras, booleanos como `"true"` e números simples
+como texto. `JobOpportunity` é o formato interno único que o restante do projeto
+entende. Essa separação impede que o pipeline precise conhecer detalhes de cada
+fonte externa.
+
+Os campos essenciais são empresa, cargo, URL, fonte e localização. O nome da
+fonte é fornecido pelo próprio adapter. Se outro campo essencial estiver ausente
+ou vazio, o adapter retorna `MISSING_REQUIRED_FIELDS`. Conversões inválidas que
+impedem a criação da vaga retornam `VALIDATION_ERROR`. Campos opcionais ausentes
+são listados em `optional_fields_missing` e não causam falha. Se um campo
+opcional estiver presente mas não puder ser convertido, a vaga é preservada com
+esse campo como `None` e a perda é registrada como `IngestionWarning`.
+
+Os campos `remote` e `brazil_eligible` usam três estados: `True` significa
+confirmação positiva, `False` confirmação negativa e `None` informação
+desconhecida. A ausência desses campos na fonte produz `None`, nunca `False`.
+
+`ingest_batch()` continua processando depois de um erro e devolve as oportunidades
+válidas e os erros separadamente. `combine_ingestion_batches()` reúne resultados
+de diferentes adapters antes de enviar apenas as oportunidades válidas ao
+pipeline.
+
 ## Pipeline local
 
 O pipeline recebe várias `JobOpportunity` e um `CandidateProfile`, aplica as
@@ -199,16 +247,18 @@ regras futuramente sem perder o registro original.
 
 ## Demonstração local
 
-O projeto inclui 13 vagas fictícias, sem informações de empresas reais e com uma
-duplicata intencional. Para executar o fluxo completo:
+O projeto inclui 12 registros brutos fictícios em três formatos, sem informações
+de empresas reais e com uma duplicata entre duas fontes. Para executar ingestão
+e pipeline juntos:
 
 ```bash
 PYTHONPATH=src python -m daniel_job_agent.demo
 ```
 
-A demonstração imprime os totais, as decisões e um ranking curto. No dataset
-atual, são recebidas 13 vagas: 12 únicas, uma duplicata, oito `KEEP`, duas
-`REVIEW` e duas `REJECT`.
+A demonstração imprime falhas de conversão, totais, decisões e um ranking curto.
+No dataset atual, são recebidos 12 registros: dez são convertidos, um gera warning
+de salário e dois falham por campos obrigatórios. O pipeline encontra nove
+oportunidades únicas, uma duplicata, seis `KEEP`, uma `REVIEW` e duas `REJECT`.
 
 ## Acompanhamento manual do CRM
 
@@ -297,6 +347,10 @@ Anos de experiência são tratados apenas como um sinal suave:
 ## Limitações atuais
 
 - A lista de cargos reconhecidos é intencionalmente pequena.
+- Os adapters aceitam apenas os três formatos fictícios documentados.
+- Booleanos aceitam somente valores reais ou os textos `"true"` e `"false"`.
+- Salários aceitam somente números simples; moedas formatadas como `"USD 80k"`
+  geram warning e permanecem como `None`.
 - Textos livres de descrição, requisitos e responsabilidades são armazenados,
   mas ainda não são interpretados automaticamente.
 - A regra de `Account Manager` ainda considera apenas o título.
@@ -315,6 +369,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Adicionar uma política simples e explícita para escolher o melhor registro
-principal entre duplicatas, por exemplo preferindo a vaga com mais campos
-estruturados preenchidos, ainda sem fazer merge automático.
+Adicionar suporte local a arquivos JSON contendo os mesmos registros brutos,
+reutilizando os adapters e mantendo a leitura de arquivo separada da conversão.

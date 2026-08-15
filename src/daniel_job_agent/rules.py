@@ -266,10 +266,12 @@ def evaluate_match(
         unknowns.append("Brazil/LATAM eligibility is not clear")
 
     remote_points = weights.remote if job.remote else 0
-    if job.remote:
+    if job.remote is True:
         positive_reasons.append("Remote opportunity")
-    elif profile.remote_only:
+    elif job.remote is False and profile.remote_only:
         potential_gaps.append("Profile requires remote work, but the role is not remote")
+    elif job.remote is None:
+        unknowns.append("Remote work arrangement is not disclosed")
 
     experience_points = 0
     required = job.years_experience_required

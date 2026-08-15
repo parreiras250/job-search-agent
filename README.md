@@ -40,10 +40,12 @@ daniel-job-agent/
 │       ├── jobicy_demo.py    # Descoberta manual ampla no Jobicy
 │       ├── remotive_demo.py  # Descoberta manual ampla na Remotive
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
+│       ├── multi_query_demo.py # Discovery controlado por múltiplas queries
 │       ├── pipeline.py       # Processamento em lote e ranking
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
 │       ├── reporting.py      # Contagens compartilhadas dos demos reais
 │       ├── rules.py          # Regras locais de classificação e decisão
+│       ├── search_strategy.py # Estratégia e métricas multi-query
 │       └── sources.py        # Leitura HTTP de fontes externas
 ├── tests/
 │   ├── test_candidate_profile.py
@@ -57,7 +59,8 @@ daniel-job-agent/
 │   ├── test_jobicy_source.py
 │   ├── test_remotive_source.py
 │   ├── test_pipeline.py
-│   └── test_rules.py
+│   ├── test_rules.py
+│   └── test_search_strategy.py
 ├── .env.example              # Exemplo de configurações e segredos
 ├── .gitignore                # Arquivos que o Git deve ignorar
 ├── README.md                 # Documentação do projeto
@@ -447,6 +450,60 @@ O demo mostra o resumo de cada fonte, tolerância a falhas, contagens globais e
 as 15 primeiras oportunidades do ranking consolidado. Ele faz no máximo uma
 consulta por fonte e não adiciona tags ou searches automáticos.
 
+## Estratégia multi-query controlada
+
+`SearchStrategy` centraliza o nome e todas as queries Jobicy e Remotive. O
+objetivo não é maximizar requests, mas combinar uma consulta ampla com poucas
+consultas direcionadas que possam encontrar vagas fora da taxonomia principal.
+
+```text
+Broad queries ─────┐
+Targeted queries ──┼→ global dedup → pipeline → ranking
+Multiple sources ──┘
+```
+
+A estratégia padrão usa quatro queries por fonte, totalizando no máximo oito
+requests por execução:
+
+| Fonte | Query | Tipo |
+|---|---|---|
+| Jobicy | `geo=latam`, `industry=seller`, sem tag | broad |
+| Jobicy | `tag=account executive` | targeted |
+| Jobicy | `tag=business development` | targeted |
+| Jobicy | `tag=sales development` | targeted |
+| Remotive | `category=sales` | broad |
+| Remotive | `search=account executive` | targeted |
+| Remotive | `search=business development` | targeted |
+| Remotive | `search=sales development` | targeted |
+
+Os termos cobrem Closing Sales, Business Development e o grupo SDR/BDR sem uma
+query para cada sinônimo. Limites menores podem ser configurados entre zero e
+quatro por fonte; a broad permanece primeira quando alguma query é selecionada.
+Uma falha fica isolada à query e não interrompe as demais.
+
+Cada resultado registra source, nome da query, recebidas, convertidas, warnings,
+erros e eventual falha. A provenance associa a vaga principal a chaves como
+`jobicy:broad_latam_sales` e `jobicy:account_executive`. Ela serve para cobertura
+e debug: aparecer em várias queries não adiciona pontos ao Match Score.
+
+Todas as oportunidades convergem para a deduplicação existente. Duplicatas em
+queries da mesma fonte são intra-source; Jobicy versus Remotive são cross-source.
+Não há merge, e o primeiro registro equivalente continua sendo o principal.
+
+A baseline broad usa localmente os resultados broad da mesma execução, sem
+requests extras. O ganho incremental é `unique global - unique broad` e `KEEP
+global - KEEP broad`. Também são reportados resultados brutos, taxa de
+duplicação, KEEP rate, cobertura por fonte e vagas achadas por múltiplas queries.
+
+### Demo multi-query
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.multi_query_demo
+```
+
+O demo mostra estratégia, resumo por query, métricas, cobertura e top 20. A
+execução é manual, sequencial e não agenda novas consultas.
+
 ## Enriquecimento determinístico
 
 `enrich_job()` recebe uma `JobOpportunity` e cria uma cópia com poucos sinais
@@ -686,6 +743,8 @@ Anos de experiência são tratados apenas como um sinal suave:
 - Não há retries, paginação adicional, descoberta de boards ou consultas em lote.
 - O discovery multi-source usa somente uma consulta padrão por fonte, em ordem
   sequencial, sem paralelismo ou estratégia multi-query.
+- A estratégia multi-query é uma camada separada, sequencial e limitada a quatro
+  queries por fonte; não há retries, concorrência ou ajuste automático de termos.
 - Role Family e Seniority usam somente uma lista inicial de sinais explícitos do
   título; títulos ambíguos permanecem `OTHER`/`UNKNOWN`.
 - Customer Success e Partnerships são tratados como famílias relevantes pelo
@@ -715,5 +774,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Executar novamente uma única demonstração multi-source manual e comparar a nova
-ordenação por Career Fit com o ranking anterior, sem ampliar queries ainda.
+Executar uma única demonstração multi-query manual e comparar o ganho incremental
+contra a baseline broad antes de alterar termos ou limites.

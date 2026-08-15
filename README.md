@@ -34,6 +34,8 @@ daniel-job-agent/
 │   └── daniel_job_agent/
 │       ├── __init__.py       # Define o pacote Python
 │       ├── agent.py          # Orquestra discovery, pipeline e persistência
+│       ├── crm.py            # Leitura, filtros e edição segura do CRM local
+│       ├── crm_cli.py        # CLI para listar, atualizar e prever exportação
 │       ├── demo.py           # Demonstração executável no terminal
 │       ├── demo_data.py      # Registros brutos e vagas fictícias
 │       ├── discovery.py      # Combinação Jobicy + Remotive
@@ -58,6 +60,7 @@ daniel-job-agent/
 ├── tests/
 │   ├── test_candidate_profile.py
 │   ├── test_agent.py
+│   ├── test_crm.py
 │   ├── test_career_fit.py
 │   ├── test_discovery.py
 │   ├── test_enrichment.py
@@ -797,6 +800,81 @@ manualmente somente o arquivo escolhido, por exemplo `data/job_agent.db`.
 manuais do CRM daquele banco. Confirme cuidadosamente o caminho e mantenha uma
 cópia quando os dados forem importantes. Nunca apague bancos por rotina.
 
+## CRM local
+
+O CRM local é uma camada segura de leitura e edição sobre o `JobRepository`.
+SQLite continua sendo a fonte principal dos dados; o CRM não mantém uma segunda
+cópia e não contém SQL. O fluxo preparado para evoluções futuras é:
+
+```text
+Discovery
+→ Pipeline
+→ SQLite
+→ CRM Layer
+→ future Google Sheets
+```
+
+Cada linha é representada por um `CRMRecord`. Os campos automáticos — empresa,
+cargo, URL, fonte, localização, score, decisão, família, senioridade, salários,
+datas de discovery, estado e explicações — são controlados pelo agente. Os únicos
+campos manuais são:
+
+- `application_status`;
+- `applied_date`;
+- `recruiter_name`;
+- `recruiter_email`;
+- `next_step`;
+- `next_step_date`;
+- `notes`.
+
+`LocalCRM.update_manual_fields` rejeita explicitamente qualquer tentativa de
+alterar campos automáticos. Atualizações parciais não apagam outros dados
+manuais, e sincronizações posteriores do agente preservam todo o CRM. As
+operações usam o `internal_id` estável do SQLite, nunca a posição no ranking.
+
+Para listar o resumo do banco:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.crm_cli list --db data/job_agent.db
+```
+
+Filtros opcionais incluem `--status`, `--decision`, `--source`,
+`--still-open`, `--minimum-score` e `--order newest`.
+
+Para registrar uma candidatura e uma nota:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.crm_cli update 12 \
+  --db data/job_agent.db \
+  --status APPLIED \
+  --applied-date 2026-08-15 \
+  --notes "Applied via company website"
+```
+
+Datas manuais usam obrigatoriamente `YYYY-MM-DD`. Uma data inválida produz uma
+mensagem amigável antes de qualquer alteração no registro.
+
+Para visualizar o contrato tabular sem gerar CSV nem acessar Google Sheets:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.crm_cli export-preview \
+  --db data/job_agent.db --limit 5
+```
+
+A ordem estável das colunas é definida em `CRM_COLUMNS`: ID, empresa, cargo,
+score, decisão, localização, fonte, URL, datas da vaga, estado, CRM manual,
+explicações, família, senioridade, remuneração e timestamps do histórico. Listas
+são exibidas de modo determinístico, separadas por ` | `, e a URL permanece
+texto puro.
+
+### Contrato futuro com Google Sheets
+
+Em uma integração futura, o agente escreverá somente as colunas automáticas
+definidas em `AUTOMATIC_FIELDS`. O usuário poderá editar somente as colunas de
+`MANUAL_FIELDS`, e apenas essas mudanças poderão voltar ao SQLite. Google Sheets
+será uma interface para o CRM, não o banco principal nem a fonte de verdade.
+Esta etapa não inclui API Google, autenticação, credenciais ou sincronização.
+
 ## Como funciona o fluxo de decisão
 
 Para cada vaga fornecida localmente ao Python:
@@ -898,6 +976,8 @@ Anos de experiência são tratados apenas como um sinal suave:
 - Vagas que deixam de aparecer não são marcadas como fechadas automaticamente.
 - O agente só roda quando o comando é iniciado manualmente; ainda não há
   scheduler, notificações ou automação semanal.
+- O CRM é apenas terminal e estrutura tabular; não há interface gráfica nem
+  sincronização com Google Sheets.
 - Role Family e Seniority usam somente uma lista inicial de sinais explícitos do
   título; títulos ambíguos permanecem `OTHER`/`UNKNOWN`.
 - Customer Success e Partnerships são tratados como famílias relevantes pelo
@@ -927,5 +1007,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Executar manualmente o agente broad e revisar o primeiro resumo persistido antes
-de considerar qualquer automação ou regra de fechamento.
+Usar o CRM local em uma execução manual e revisar se a ordem das colunas atende
+ao acompanhamento cotidiano antes de projetar a sincronização com Sheets.

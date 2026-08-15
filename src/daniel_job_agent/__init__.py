@@ -1,6 +1,17 @@
 """Componentes públicos do Daniel Job Agent."""
 
 from .agent import AgentRunResult, DanielJobAgent, create_broad_discovery
+from .crm import (
+    AUTOMATIC_FIELDS,
+    CRM_COLUMNS,
+    MANUAL_FIELDS,
+    CRMRecord,
+    CRMRecordNotFound,
+    CRMTable,
+    CRMValidationError,
+    LocalCRM,
+    records_to_table,
+)
 
 from .discovery import (
     JobicyDiscoveryConfig,
@@ -106,9 +117,15 @@ __all__ = [
     "ApplicationStatus",
     "ApplicationTracking",
     "AgentRunResult",
+    "AUTOMATIC_FIELDS",
     "BaseJobAdapter",
     "BatchIngestionResult",
     "CandidateProfile",
+    "CRM_COLUMNS",
+    "CRMRecord",
+    "CRMRecordNotFound",
+    "CRMTable",
+    "CRMValidationError",
     "DuplicateRecord",
     "DanielJobAgent",
     "DEFAULT_DATABASE_PATH",
@@ -123,6 +140,8 @@ __all__ = [
     "JobicyDiscoveryConfig",
     "JobOpportunity",
     "JobRepository",
+    "LocalCRM",
+    "MANUAL_FIELDS",
     "JobSource",
     "JobicyJobAdapter",
     "JobicyJobSource",
@@ -190,5 +209,6 @@ __all__ = [
     "ingest_batch",
     "process_opportunities",
     "recommend_search_strategy",
+    "records_to_table",
     "sync_opportunities",
 ]

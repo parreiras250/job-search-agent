@@ -61,6 +61,34 @@ class RoleClassificationTests(unittest.TestCase):
     def test_classifies_clearly_irrelevant_role(self) -> None:
         self.assertEqual(classify_role("Senior Software Engineer"), RolePriority.IRRELEVANT)
 
+    def test_rejects_clearly_technical_and_non_sales_families(self) -> None:
+        roles = (
+            "AI Engineer",
+            "Machine Learning Engineer",
+            "Backend Engineer",
+            "Product Manager",
+            "Legal Counsel",
+            "Talent Acquisition Specialist",
+            "Senior Researcher",
+        )
+        for role in roles:
+            with self.subTest(role=role):
+                self.assertEqual(
+                    decide_retention(make_job(role=role)),
+                    RetentionDecision.REJECT,
+                )
+
+    def test_protects_technical_commercial_roles_from_false_rejection(self) -> None:
+        roles = ("Sales Engineer", "Solutions Engineer", "Technical Account Manager")
+        for role in roles:
+            with self.subTest(role=role):
+                self.assertNotEqual(
+                    decide_retention(
+                        make_job(role=role, location="Location not disclosed")
+                    ),
+                    RetentionDecision.REJECT,
+                )
+
 
 class GeographicEligibilityTests(unittest.TestCase):
     def test_recognizes_supported_eligible_locations(self) -> None:
@@ -84,6 +112,27 @@ class GeographicEligibilityTests(unittest.TestCase):
             evaluate_geographic_eligibility("Remote"),
             GeographicEligibility.UNKNOWN,
         )
+
+    def test_uses_explicit_eligible_signals_from_title(self) -> None:
+        roles = (
+            "Account Executive - LATAM",
+            "Sales Executive Latin America",
+            "BDR Brazil",
+        )
+        for role in roles:
+            with self.subTest(role=role):
+                self.assertEqual(
+                    evaluate_geographic_eligibility("Location not disclosed", role),
+                    GeographicEligibility.ELIGIBLE,
+                )
+
+    def test_uses_explicit_us_signal_from_title_conservatively(self) -> None:
+        for role in ("Account Executive USA", "Sales Executive United States"):
+            with self.subTest(role=role):
+                self.assertEqual(
+                    evaluate_geographic_eligibility("Location not disclosed", role),
+                    GeographicEligibility.NOT_ELIGIBLE,
+                )
 
 
 class DeduplicationTests(unittest.TestCase):

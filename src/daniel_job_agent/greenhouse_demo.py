@@ -2,10 +2,36 @@
 
 import argparse
 
-from .ingestion import GreenhouseJobAdapter, ingest_batch
-from .pipeline import process_opportunities
+from .enrichment import enrich_opportunities
+from .ingestion import BatchIngestionResult, GreenhouseJobAdapter, ingest_batch
+from .pipeline import PipelineResult, process_opportunities
 from .profiles import create_daniel_profile
 from .sources import GreenhouseJobSource
+
+
+def format_counts(
+    jobs_received: int,
+    ingestion: BatchIngestionResult,
+    pipeline: PipelineResult,
+) -> str:
+    """Mostra de forma auditável como os totais se relacionam."""
+
+    classified = pipeline.keep_count + pipeline.review_count + pipeline.reject_count
+    return "\n".join(
+        [
+            f"Jobs received: {jobs_received}",
+            f"Jobs converted: {ingestion.converted_count}",
+            f"Warnings: {ingestion.warning_count}",
+            f"Ingestion errors: {ingestion.error_count}",
+            f"Unique jobs: {pipeline.unique_opportunities}",
+            f"Duplicates detected: {pipeline.duplicates_detected}",
+            (
+                f"KEEP: {pipeline.keep_count} | REVIEW: {pipeline.review_count} "
+                f"| REJECT: {pipeline.reject_count}"
+            ),
+            f"Check: unique jobs = KEEP + REVIEW + REJECT = {classified}",
+        ]
+    )
 
 
 def main() -> None:
@@ -30,19 +56,12 @@ def main() -> None:
         GreenhouseJobAdapter(args.company_name),
     )
     pipeline = process_opportunities(
-        ingestion.opportunities,
+        enrich_opportunities(ingestion.opportunities),
         create_daniel_profile(),
     )
 
     print("Greenhouse public board")
-    print(f"Jobs received: {len(source_result.records)}")
-    print(f"Jobs converted: {ingestion.converted_count}")
-    print(f"Warnings: {ingestion.warning_count}")
-    print(f"Ingestion errors: {ingestion.error_count}")
-    print(
-        f"KEEP: {pipeline.keep_count} | REVIEW: {pipeline.review_count} "
-        f"| REJECT: {pipeline.reject_count}"
-    )
+    print(format_counts(len(source_result.records), ingestion, pipeline))
     print("\nTop opportunities:")
     for item in pipeline.ranked_opportunities[:10]:
         job = item.normalized_job

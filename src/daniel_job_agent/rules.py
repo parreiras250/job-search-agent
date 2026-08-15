@@ -88,8 +88,23 @@ _HIGH_ROLES = (
 _IRRELEVANT_ROLES = (
     "software engineer",
     "data engineer",
+    "backend engineer",
+    "frontend engineer",
+    "ai engineer",
+    "machine learning engineer",
+    "devops engineer",
+    "infrastructure engineer",
     "product designer",
+    "product manager",
     "accountant",
+    "legal counsel",
+    "talent acquisition",
+    "researcher",
+)
+_PROTECTED_TECHNICAL_SALES_ROLES = (
+    "sales engineer",
+    "solutions engineer",
+    "technical account manager",
 )
 
 
@@ -100,11 +115,28 @@ def _contains_phrase(title: str, phrase: str) -> bool:
     return re.search(pattern, title) is not None
 
 
+def is_clearly_irrelevant_role(role: str) -> bool:
+    """Reconhece famílias fora de vendas e protege cargos comerciais técnicos."""
+
+    title = _comparable(role)
+    if any(
+        _contains_phrase(title, protected)
+        for protected in _PROTECTED_TECHNICAL_SALES_ROLES
+    ):
+        return False
+    if any(_contains_phrase(title, item) for item in _IRRELEVANT_ROLES):
+        return True
+    return (
+        _contains_phrase(title, "engineer")
+        or _contains_phrase(title, "hr")
+    )
+
+
 def classify_role(role: str) -> RolePriority:
     """Classifica títulos comerciais; desconhecidos seguem para revisão."""
 
     title = _comparable(role)
-    if any(_contains_phrase(title, item) for item in _IRRELEVANT_ROLES):
+    if is_clearly_irrelevant_role(role):
         return RolePriority.IRRELEVANT
     if any(_contains_phrase(title, item) for item in _MEDIUM_ROLES):
         return RolePriority.MEDIUM
@@ -129,14 +161,26 @@ _ELIGIBLE_LOCATIONS = (
 )
 
 
-def evaluate_geographic_eligibility(location: str) -> GeographicEligibility:
-    """Interpreta apenas padrões geográficos explícitos desta primeira etapa."""
+def evaluate_geographic_eligibility(
+    location: str, role: str | None = None
+) -> GeographicEligibility:
+    """Interpreta sinais explícitos de localização e, opcionalmente, do título."""
 
     normalized = _comparable(location)
     if any(phrase in normalized for phrase in _NOT_ELIGIBLE_LOCATIONS):
         return GeographicEligibility.NOT_ELIGIBLE
     if any(phrase in normalized for phrase in _ELIGIBLE_LOCATIONS):
         return GeographicEligibility.ELIGIBLE
+    if role is not None:
+        normalized_role = _comparable(role)
+        if re.search(
+            r"(?<!\w)(?:us-only|usa|united states)(?!\w)", normalized_role
+        ):
+            return GeographicEligibility.NOT_ELIGIBLE
+        if re.search(
+            r"(?<!\w)(?:latam|latin america|brazil)(?!\w)", normalized_role
+        ):
+            return GeographicEligibility.ELIGIBLE
     return GeographicEligibility.UNKNOWN
 
 
@@ -215,7 +259,7 @@ def _legacy_score(job: JobOpportunity, weights: ScoreWeights) -> int:
     """Mantém exatamente o cálculo validado antes da introdução do perfil."""
 
     priority = classify_role(job.role)
-    eligibility = evaluate_geographic_eligibility(job.location)
+    eligibility = evaluate_geographic_eligibility(job.location, job.role)
     role_points = {
         RolePriority.HIGH: weights.high_role,
         RolePriority.MEDIUM: weights.medium_role,
@@ -238,7 +282,7 @@ def evaluate_match(
     """Compara vaga e perfil usando somente dados estruturados e regras claras."""
 
     priority = _profile_role_priority(job, profile)
-    eligibility = evaluate_geographic_eligibility(job.location)
+    eligibility = evaluate_geographic_eligibility(job.location, job.role)
     positive_reasons: list[str] = []
     potential_gaps: list[str] = []
     unknowns: list[str] = []
@@ -338,6 +382,43 @@ def evaluate_match(
             experience_signal_points += weights.relevant_experience_signal
             positive_reasons.append(reason)
 
+    structured_signals = (
+        (
+            job.full_cycle_sales_required,
+            profile.full_cycle_sales,
+            "Full-cycle sales experience matches an explicit requirement",
+            "Full-cycle sales requirement is not disclosed",
+        ),
+        (
+            job.outbound_sales_required,
+            profile.outbound_experience,
+            "Outbound sales experience matches an explicit requirement",
+            "Outbound sales requirement is not disclosed",
+        ),
+        (
+            job.b2b_experience_required,
+            profile.b2b_experience,
+            "B2B experience matches an explicit requirement",
+            "B2B experience requirement is not disclosed",
+        ),
+        (
+            job.saas_experience_required,
+            profile.saas_experience,
+            "SaaS experience matches an explicit requirement",
+            "SaaS experience requirement is not disclosed",
+        ),
+    )
+    for required_signal, profile_signal, reason, unknown in structured_signals:
+        if required_signal is True and profile_signal is True:
+            experience_signal_points += weights.relevant_experience_signal
+            positive_reasons.append(reason)
+        elif required_signal is None:
+            unknowns.append(unknown)
+    if job.inbound_sales_mentioned is None:
+        unknowns.append("Inbound sales motion is not disclosed")
+    elif job.inbound_sales_mentioned is True:
+        positive_reasons.append("Inbound sales motion is explicitly mentioned")
+
     if job.base_salary is None and job.ote is None:
         unknowns.append("Compensation is not disclosed")
 
@@ -378,15 +459,14 @@ def decide_retention(
     """Decide sem rejeitar uma vaga apenas por localização desconhecida."""
 
     priority = classify_role(job.role)
-    eligibility = evaluate_geographic_eligibility(job.location)
+    eligibility = evaluate_geographic_eligibility(job.location, job.role)
 
     if eligibility is GeographicEligibility.NOT_ELIGIBLE:
         return RetentionDecision.REJECT
     if priority is RolePriority.IRRELEVANT:
         # Títulos explicitamente fora do objetivo e títulos ainda não conhecidos
         # compartilham o enum, por isso só os exemplos claros são rejeitados.
-        title = _comparable(job.role)
-        if any(_contains_phrase(title, item) for item in _IRRELEVANT_ROLES):
+        if is_clearly_irrelevant_role(job.role):
             return RetentionDecision.REJECT
         return RetentionDecision.REVIEW
     score = calculate_match_score(job, weights, profile)

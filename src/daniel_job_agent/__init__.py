@@ -1,5 +1,6 @@
 """Componentes públicos do Daniel Job Agent."""
 
+from .enrichment import enrich_job, enrich_opportunities, extract_years_experience
 from .models import (
     ApplicationStatus,
     ApplicationTracking,
@@ -39,6 +40,7 @@ from .rules import (
     decide_retention,
     evaluate_match,
     evaluate_geographic_eligibility,
+    is_clearly_irrelevant_role,
     normalize_company,
     normalize_job_url,
     normalize_location,
@@ -86,8 +88,12 @@ __all__ = [
     "combine_ingestion_batches",
     "create_daniel_profile",
     "decide_retention",
+    "enrich_job",
+    "enrich_opportunities",
     "evaluate_match",
     "evaluate_geographic_eligibility",
+    "extract_years_experience",
+    "is_clearly_irrelevant_role",
     "normalize_company",
     "normalize_job_url",
     "normalize_location",

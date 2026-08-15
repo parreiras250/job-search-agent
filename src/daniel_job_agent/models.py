@@ -109,6 +109,11 @@ class JobOpportunity:
     tools_mentioned: list[str] | None = None
     industries_mentioned: list[str] | None = None
     years_experience_required: float | None = None
+    full_cycle_sales_required: bool | None = None
+    outbound_sales_required: bool | None = None
+    inbound_sales_mentioned: bool | None = None
+    b2b_experience_required: bool | None = None
+    saas_experience_required: bool | None = None
 
     # Remuneração. Float mantém o modelo simples nesta etapa; a moeda será
     # modelada separadamente quando existirem fontes reais de vagas.

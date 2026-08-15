@@ -17,6 +17,7 @@ from daniel_job_agent import (  # noqa: E402
     ingest_batch,
     process_opportunities,
 )
+from daniel_job_agent.greenhouse_demo import format_counts  # noqa: E402
 from daniel_job_agent.sources import (  # noqa: E402
     DEFAULT_USER_AGENT,
     GreenhouseJobSource,
@@ -205,6 +206,13 @@ class GreenhouseAdapterIntegrationTests(unittest.TestCase):
         self.assertIs(pipeline.ranked_opportunities[0].original_job, job)
         self.assertEqual(job.tracking.application_status, ApplicationStatus.APPLIED)
         self.assertEqual(job.tracking.notes, "Manual note")
+
+        summary = format_counts(len(source_result.records), ingestion, pipeline)
+        self.assertIn("Jobs received: 1", summary)
+        self.assertIn("Jobs converted: 1", summary)
+        self.assertIn("Unique jobs: 1", summary)
+        self.assertIn("Duplicates detected: 0", summary)
+        self.assertIn("unique jobs = KEEP + REVIEW + REJECT = 1", summary)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ daniel-job-agent/
 │       ├── __init__.py       # Define o pacote Python
 │       ├── demo.py           # Demonstração executável no terminal
 │       ├── demo_data.py      # Registros brutos e vagas fictícias
+│       ├── enrichment.py     # Extração determinística de sinais explícitos
 │       ├── greenhouse_demo.py # Consulta manual de um board público
 │       ├── ingestion.py      # Adapters e ingestão local em lote
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
@@ -38,6 +39,7 @@ daniel-job-agent/
 │       └── sources.py        # Leitura HTTP de fontes externas
 ├── tests/
 │   ├── test_candidate_profile.py
+│   ├── test_enrichment.py
 │   ├── test_greenhouse_source.py
 │   ├── test_ingestion.py
 │   ├── test_job_opportunity.py
@@ -216,6 +218,7 @@ Greenhouse public Job Board
 → GreenhouseJobSource
 → GreenhouseJobAdapter
 → JobOpportunity
+→ deterministic enrichment
 → pipeline
 → ranking
 ```
@@ -233,7 +236,8 @@ continua conhecendo apenas `JobOpportunity` e não contém código do Greenhouse
 A listagem pública fornece título, URL, localização e, com `content=true`, o
 conteúdo da descrição. Ela não fornece de forma estruturada e consistente
 remoto, elegibilidade para o Brasil, salário, experiência, ferramentas ou
-indústria. Esses campos permanecem `None` e a descrição não é interpretada.
+indústria. Esses campos começam como `None`; somente os sinais explícitos
+documentados abaixo podem ser enriquecidos localmente.
 
 ### Consulta manual de um board real
 
@@ -248,6 +252,35 @@ Esse comando realiza uma única consulta controlada, converte as vagas válidas 
 mostra até dez oportunidades ordenadas. Ele não envia candidaturas e não deve ser
 usado para descobrir tokens ou consultar empresas em massa. A consulta real não
 faz parte dos testes automatizados.
+
+A saída também mostra `Jobs received`, `Jobs converted`, `Unique jobs`,
+`Duplicates detected`, `KEEP`, `REVIEW` e `REJECT`. A linha de conferência deixa
+explícito que oportunidades únicas são a soma das três decisões.
+
+## Enriquecimento determinístico
+
+`enrich_job()` recebe uma `JobOpportunity` e cria uma cópia com poucos sinais
+estruturados encontrados de maneira explícita na descrição. Ele não calcula
+score, não decide retenção e não modifica `ApplicationTracking`.
+
+As regras atuais reconhecem somente:
+
+- anos em formatos simples como `4+ years`, `5 years of experience` e
+  `6-8 years`; em ranges, o mínimo informado é usado;
+- `entire sales process`, `full sales cycle`, `complete sales cycle`,
+  `end-to-end sales cycle` e `qualification to closing`;
+- `outbound`, `direct prospecting`, `cold outreach` e `prospecting`;
+- menção explícita a `inbound`;
+- termos explícitos `B2B` e `SaaS`.
+
+O título também pode fornecer um sinal geográfico objetivo. `LATAM`,
+`Latin America` e `Brazil` contam como elegibilidade positiva; `USA`,
+`United States` e `US-only` contam como incompatibilidade. Ausência desses termos
+continua sendo `UNKNOWN`.
+
+As regras são deliberadamente conservadoras. Elas não tentam interpretar
+senioridade, salário, ferramentas, indústria, elegibilidade ou remoto a partir
+de frases ambíguas. Ausência de informação não vira `False`, gap ou rejeição.
 
 ## Pipeline local
 
@@ -395,7 +428,11 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Limitações atuais
 
-- A lista de cargos reconhecidos é intencionalmente pequena.
+- A lista de cargos reconhecidos é intencionalmente pequena. Famílias claramente
+  técnicas ou não comerciais, como engenharia, produto, jurídico, RH e pesquisa,
+  podem ser rejeitadas por padrões simples no título.
+- `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
+  proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
 - A fonte real suporta somente um board Greenhouse informado explicitamente.
 - O nome da empresa precisa ser informado junto com o token porque a resposta de
@@ -404,8 +441,10 @@ Anos de experiência são tratados apenas como um sinal suave:
 - Booleanos aceitam somente valores reais ou os textos `"true"` e `"false"`.
 - Salários aceitam somente números simples; moedas formatadas como `"USD 80k"`
   geram warning e permanecem como `None`.
-- Textos livres de descrição, requisitos e responsabilidades são armazenados,
-  mas ainda não são interpretados automaticamente.
+- O parser de descrição reconhece somente a pequena lista de expressões acima;
+  variações de linguagem fora desses padrões permanecem desconhecidas.
+- Negação e contexto linguístico complexo não são analisados. Existe apenas uma
+  proteção simples para expressões negativas diretas relacionadas a outbound.
 - A regra de `Account Manager` ainda considera apenas o título.
 - A elegibilidade reconhece somente expressões geográficas simples e explícitas.
 - A deduplicação não usa identificadores de plataformas nem similaridade de texto.
@@ -415,7 +454,8 @@ Anos de experiência são tratados apenas como um sinal suave:
   participarem do score.
 - A avaliação ainda não representa tamanho de contrato, complexidade do ciclo de
   vendas, senioridade estruturada ou requisitos obrigatórios versus desejáveis.
-- O Match Score não interpreta descrições e não usa IA.
+- O Match Score não lê a descrição diretamente; ele usa somente os campos
+  estruturados pelo enriquecimento determinístico e não usa IA.
 - `brazil_eligible` foi mantido por compatibilidade, mas a nova regra geográfica
   usa o texto de `location`; a unificação desses dois dados fica para uma etapa
   futura.

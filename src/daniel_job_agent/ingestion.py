@@ -345,6 +345,51 @@ class GreenhouseJobAdapter(BaseJobAdapter):
         return super().adapt(mapped)
 
 
+class LeverJobAdapter(BaseJobAdapter):
+    """Converte o formato real da Postings API pública do Lever."""
+
+    source_name = "Lever public postings"
+
+    def __init__(self, company_name: str) -> None:
+        if not company_name.strip():
+            raise ValueError("company_name cannot be empty")
+        self.company_name = company_name.strip()
+
+    def adapt(self, record: RawJobRecord) -> IngestionResult:
+        categories = record.get("categories")
+        category_values = categories if isinstance(categories, Mapping) else {}
+        description_parts: list[str] = []
+        introduction = record.get("descriptionPlain") or record.get("description")
+        if isinstance(introduction, str) and introduction.strip():
+            description_parts.append(introduction.strip())
+        lists = record.get("lists")
+        if isinstance(lists, list):
+            for section in lists:
+                if not isinstance(section, Mapping):
+                    continue
+                heading = section.get("text")
+                content = section.get("content")
+                if isinstance(heading, str) and heading.strip():
+                    description_parts.append(heading.strip())
+                if isinstance(content, str) and content.strip():
+                    description_parts.append(content.strip())
+        additional = record.get("additionalPlain") or record.get("additional")
+        if isinstance(additional, str) and additional.strip():
+            description_parts.append(additional.strip())
+        description = "\n\n".join(description_parts) or None
+        mapped: dict[str, object] = {
+            "company": self.company_name,
+            "role": record.get("text"),
+            "job_url": record.get("hostedUrl") or record.get("applyUrl"),
+            "location": category_values.get("location"),
+            "description": description,
+            "employment_type": category_values.get("commitment"),
+            "remote": None,
+            "brazil_eligible": None,
+        }
+        return super().adapt(mapped)
+
+
 def ingest_batch(
     records: Iterable[RawJobRecord], adapter: BaseJobAdapter
 ) -> BatchIngestionResult:

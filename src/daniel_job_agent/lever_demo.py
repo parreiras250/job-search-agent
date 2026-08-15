@@ -1,27 +1,34 @@
-"""Consulta manual e explícita de um único board público do Greenhouse."""
+"""Consulta manual e explícita de um único site público do Lever."""
 
 import argparse
 
 from .enrichment import enrich_opportunities
-from .ingestion import GreenhouseJobAdapter, ingest_batch
+from .ingestion import LeverJobAdapter, ingest_batch
 from .pipeline import process_opportunities
 from .profiles import create_daniel_profile
 from .reporting import format_counts
-from .sources import GreenhouseJobSource
+from .sources import LeverJobSource
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Read one public Greenhouse job board and rank its jobs."
+        description="Read one public Lever postings site and rank its jobs."
     )
-    parser.add_argument("board_token", help="Public token from the Greenhouse board URL")
+    parser.add_argument("company_slug", help="Public site slug from the Lever jobs URL")
+    parser.add_argument("company_name", help="Company display name")
     parser.add_argument(
-        "company_name",
-        help="Company display name (the list-jobs response does not provide it)",
+        "--region",
+        choices=("global", "eu"),
+        default="global",
+        help="Lever instance region (default: global)",
     )
     args = parser.parse_args()
 
-    source = GreenhouseJobSource(args.board_token, args.company_name)
+    source = LeverJobSource(
+        args.company_slug,
+        args.company_name,
+        region=args.region,
+    )
     source_result = source.fetch()
     if not source_result.success:
         print(f"Source error: {source_result.message}")
@@ -29,14 +36,12 @@ def main() -> None:
 
     ingestion = ingest_batch(
         source_result.records,
-        GreenhouseJobAdapter(args.company_name),
+        LeverJobAdapter(args.company_name),
     )
-    pipeline = process_opportunities(
-        enrich_opportunities(ingestion.opportunities),
-        create_daniel_profile(),
-    )
+    enriched_jobs = enrich_opportunities(ingestion.opportunities)
+    pipeline = process_opportunities(enriched_jobs, create_daniel_profile())
 
-    print("Greenhouse public board")
+    print("Lever public postings")
     print(format_counts(len(source_result.records), ingestion, pipeline))
     print("\nTop opportunities:")
     for item in pipeline.ranked_opportunities[:10]:

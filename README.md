@@ -15,8 +15,9 @@ Daniel registra somente informações profissionais relevantes, como experiênci
 cargos desejados, ferramentas, indústrias e preferências de trabalho.
 
 O acompanhamento manual do processo seletivo fica separado dos dados do anúncio.
-Ainda **não** há busca de vagas, scraping, inteligência artificial, conexão com
-Google Sheets, APIs externas ou automação semanal.
+Greenhouse e Lever podem ser consultados manualmente por seus endpoints públicos.
+Ainda **não** há descoberta automática de empresas, scraping, inteligência
+artificial, conexão com Google Sheets ou automação semanal.
 
 ## Estrutura
 
@@ -32,9 +33,11 @@ daniel-job-agent/
 │       ├── enrichment.py     # Extração determinística de sinais explícitos
 │       ├── greenhouse_demo.py # Consulta manual de um board público
 │       ├── ingestion.py      # Adapters e ingestão local em lote
+│       ├── lever_demo.py     # Consulta manual de postings públicos Lever
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
 │       ├── pipeline.py       # Processamento em lote e ranking
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
+│       ├── reporting.py      # Contagens compartilhadas dos demos reais
 │       ├── rules.py          # Regras locais de classificação e decisão
 │       └── sources.py        # Leitura HTTP de fontes externas
 ├── tests/
@@ -43,6 +46,7 @@ daniel-job-agent/
 │   ├── test_greenhouse_source.py
 │   ├── test_ingestion.py
 │   ├── test_job_opportunity.py
+│   ├── test_lever_source.py
 │   ├── test_pipeline.py
 │   └── test_rules.py
 ├── .env.example              # Exemplo de configurações e segredos
@@ -257,6 +261,50 @@ A saída também mostra `Jobs received`, `Jobs converted`, `Unique jobs`,
 `Duplicates detected`, `KEEP`, `REVIEW` e `REJECT`. A linha de conferência deixa
 explícito que oportunidades únicas são a soma das três decisões.
 
+## Lever público
+
+O projeto também lê postings públicos da
+[Lever Postings API](https://github.com/lever/postings-api), sem API key, login
+ou acesso à Data API privada. Apenas vagas publicadas são consultadas.
+
+```text
+Lever public postings
+→ LeverJobSource
+→ LeverJobAdapter
+→ deterministic enrichment
+→ pipeline
+→ ranking
+```
+
+`LeverJobSource` reutiliza o mesmo transporte HTTP, timeout, User-Agent e
+tratamento estruturado de erros usado pelo Greenhouse. A validação específica do
+Lever espera uma lista JSON. Lista vazia produz `NO_JOBS`, não erro.
+
+`LeverJobAdapter` mapeia título, localização, URL hospedada, descrição e tipo de
+contratação quando esses campos aparecem de forma estruturada. Os blocos
+textuais oficiais do posting são reunidos no campo `description`; o adapter não
+interpreta seu significado. Remoto, elegibilidade para o Brasil, salário, anos,
+SaaS, B2B, ferramentas e indústria permanecem `None` até que o enrichment
+encontre algum dos sinais explícitos que ele já suporta.
+
+### Consulta manual de um site Lever
+
+Informe explicitamente o slug público e o nome de exibição da empresa:
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.lever_demo COMPANY_SLUG "Company Name"
+```
+
+Para um site hospedado na instância europeia:
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.lever_demo COMPANY_SLUG "Company Name" --region eu
+```
+
+O comando faz uma única consulta e mostra recebidas, convertidas, warnings,
+erros, únicas, duplicatas, decisões e as dez primeiras oportunidades. Não existe
+descoberta automática de slugs nem consulta de várias empresas.
+
 ## Enriquecimento determinístico
 
 `enrich_job()` recebe uma `JobOpportunity` e cria uma cópia com poucos sinais
@@ -434,9 +482,12 @@ Anos de experiência são tratados apenas como um sinal suave:
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- A fonte real suporta somente um board Greenhouse informado explicitamente.
-- O nome da empresa precisa ser informado junto com o token porque a resposta de
-  listagem não o fornece de forma confiável.
+- As fontes reais suportadas são Greenhouse e Lever, sempre com um board/site
+  informado explicitamente.
+- O nome da empresa precisa ser informado junto com o token ou slug porque as
+  respostas de listagem não o fornecem de forma confiável.
+- Lever suporta apenas as bases global e EU documentadas; não há seleção
+  automática de região.
 - Não há retries, paginação adicional, descoberta de boards ou consultas em lote.
 - Booleanos aceitam somente valores reais ou os textos `"true"` e `"false"`.
 - Salários aceitam somente números simples; moedas formatadas como `"USD 80k"`
@@ -462,5 +513,6 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Adicionar cache local opcional para guardar a última resposta pública e permitir
-comparações manuais sem repetir uma consulta de rede.
+Executar uma única validação manual em um site Lever escolhido pelo usuário e,
+se o payload revelar variações legítimas, representá-las primeiro como fixtures
+locais antes de ampliar qualquer regra.

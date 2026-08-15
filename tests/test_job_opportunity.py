@@ -9,7 +9,13 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from daniel_job_agent import JobOpportunity  # noqa: E402
+from daniel_job_agent import (  # noqa: E402
+    ApplicationStatus,
+    ApplicationTracking,
+    JobOpportunity,
+    calculate_match_score,
+    decide_retention,
+)
 
 
 class JobOpportunityTests(unittest.TestCase):
@@ -54,6 +60,35 @@ class JobOpportunityTests(unittest.TestCase):
         first.why_match.append("Relevant sales experience")
 
         self.assertEqual(second.why_match, [])
+
+    def test_manual_tracking_has_safe_independent_defaults(self) -> None:
+        first = self.make_job()
+        second = self.make_job()
+
+        first.tracking.notes = "Recruiter asked for availability."
+        first.tracking.application_status = ApplicationStatus.RECRUITER_SCREEN
+
+        self.assertEqual(second.tracking.application_status, ApplicationStatus.NOT_APPLIED)
+        self.assertIsNone(second.tracking.notes)
+
+    def test_rules_do_not_overwrite_manual_tracking_data(self) -> None:
+        tracking = ApplicationTracking(
+            application_status=ApplicationStatus.APPLIED,
+            applied_date=date(2026, 8, 14),
+            recruiter_name="Ana",
+            recruiter_email="ana@example.com",
+            next_step="Recruiter screen",
+            next_step_date=date(2026, 8, 20),
+            notes="Application sent directly.",
+        )
+        job = self.make_job(tracking=tracking)
+
+        calculate_match_score(job)
+        decide_retention(job)
+
+        self.assertIs(job.tracking, tracking)
+        self.assertEqual(job.tracking.application_status, ApplicationStatus.APPLIED)
+        self.assertEqual(job.tracking.notes, "Application sent directly.")
 
 
 if __name__ == "__main__":

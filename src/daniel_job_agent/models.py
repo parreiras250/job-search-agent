@@ -2,11 +2,44 @@
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
+from enum import Enum
+
+
+class ApplicationStatus(str, Enum):
+    """Etapas que Daniel pode registrar manualmente no processo seletivo."""
+
+    NOT_APPLIED = "NOT_APPLIED"
+    APPLIED = "APPLIED"
+    RECRUITER_SCREEN = "RECRUITER_SCREEN"
+    HIRING_MANAGER = "HIRING_MANAGER"
+    INTERVIEW = "INTERVIEW"
+    FINAL_INTERVIEW = "FINAL_INTERVIEW"
+    OFFER = "OFFER"
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
+
+
+@dataclass(slots=True)
+class ApplicationTracking:
+    """Dados manuais do CRM, separados das informações publicadas da vaga.
+
+    Regras automáticas recebem este objeto apenas como parte da oportunidade e
+    nunca o modificam. Assim, futuras atualizações de anúncios podem preservar
+    todo o acompanhamento feito pelo usuário.
+    """
+
+    application_status: ApplicationStatus = ApplicationStatus.NOT_APPLIED
+    applied_date: date | None = None
+    recruiter_name: str | None = None
+    recruiter_email: str | None = None
+    next_step: str | None = None
+    next_step_date: date | None = None
+    notes: str | None = None
 
 
 @dataclass(slots=True)
 class JobOpportunity:
-    """Representa uma vaga encontrada e seu estado no futuro CRM.
+    """Representa os dados encontrados em um anúncio de vaga.
 
     Os campos essenciais para identificar a vaga não têm valor padrão. Os
     campos que podem estar ausentes no anúncio usam ``None``. Isso permite
@@ -44,6 +77,10 @@ class JobOpportunity:
     last_checked: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+
+    # Informações preenchidas pelo usuário. Elas ficam agrupadas para não serem
+    # confundidas nem sobrescritas por futuras atualizações automáticas da vaga.
+    tracking: ApplicationTracking = field(default_factory=ApplicationTracking)
 
     def __post_init__(self) -> None:
         """Impede a criação de registros com valores claramente inválidos."""

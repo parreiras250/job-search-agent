@@ -45,6 +45,9 @@ class RoleFamilyClassificationTests(unittest.TestCase):
             "Product Manager": RoleFamily.PRODUCT,
             "Remote Office Assistant": RoleFamily.OPERATIONS,
             "Freelance Copywriter": RoleFamily.WRITING_CONTENT,
+            "Copywriter": RoleFamily.WRITING_CONTENT,
+            "Freelance Writer": RoleFamily.WRITING_CONTENT,
+            "Writer": RoleFamily.WRITING_CONTENT,
             "Financial Analyst": RoleFamily.FINANCE,
             "Legal Counsel": RoleFamily.LEGAL,
             "Recruiter": RoleFamily.HR_RECRUITING,
@@ -80,6 +83,12 @@ class RoleFamilyClassificationTests(unittest.TestCase):
     def test_classifies_spaced_pre_sales_title(self):
         self.assertEqual(
             classify_role_family("Pre Sales Consultant"),
+            RoleFamily.PRE_SALES,
+        )
+
+    def test_classifies_technical_sales_specialist_as_pre_sales(self):
+        self.assertEqual(
+            classify_role_family("Technical Sales Specialist"),
             RoleFamily.PRE_SALES,
         )
 

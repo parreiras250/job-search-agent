@@ -68,10 +68,10 @@ class SearchStrategy:
         return len(self.jobicy_queries) + len(self.remotive_queries)
 
 
-def create_default_search_strategy(
+def create_full_search_strategy(
     *, jobicy_limit: int = 4, remotive_limit: int = 4
 ) -> SearchStrategy:
-    """Cria a estratégia padrão; limites menores preservam broad primeiro."""
+    """Cria a estratégia completa; limites menores preservam broad primeiro."""
 
     for name, limit in (("jobicy_limit", jobicy_limit), ("remotive_limit", remotive_limit)):
         if isinstance(limit, bool) or not isinstance(limit, int) or not 0 <= limit <= 4:
@@ -89,10 +89,32 @@ def create_default_search_strategy(
         RemotiveSearchQuery("sales_development", broad=False, search="sales development"),
     )
     return SearchStrategy(
-        name="Daniel controlled sales discovery",
+        name="Daniel full sales discovery",
         jobicy_queries=jobicy[:jobicy_limit],
         remotive_queries=remotive[:remotive_limit],
     )
+
+
+def create_default_search_strategy() -> SearchStrategy:
+    """Estratégia conservadora calibrada para executar somente as duas broad."""
+
+    full = create_full_search_strategy()
+    return SearchStrategy(
+        name="Daniel broad sales baseline",
+        jobicy_queries=full.jobicy_queries[:1],
+        remotive_queries=full.remotive_queries[:1],
+    )
+
+
+def create_search_strategy(mode: str) -> SearchStrategy:
+    """Seleciona somente os modos públicos broad e full."""
+
+    normalized = mode.strip().casefold()
+    if normalized == "broad":
+        return create_default_search_strategy()
+    if normalized == "full":
+        return create_full_search_strategy()
+    raise ValueError("mode must be 'broad' or 'full'")
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,9 +133,54 @@ class QueryDiscoverySummary:
 
 
 @dataclass(frozen=True, slots=True)
+class QueryUsefulnessRule:
+    """Critério ajustável que ignora volume bruto sem ganho marginal."""
+
+    minimum_unique_gain: int = 1
+    minimum_keep_gain: int = 1
+
+    def is_useful(self, unique_gain: int, keep_gain: int) -> bool:
+        return (
+            unique_gain >= self.minimum_unique_gain
+            or keep_gain >= self.minimum_keep_gain
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class QueryEfficiency:
+    source: str
+    query_name: str
+    query_key: str
+    broad: bool
+    jobs_received: int
+    jobs_converted: int
+    unique_jobs_contributed: int
+    duplicate_jobs: int
+    keep_contributed: int
+    review_contributed: int
+    reject_contributed: int
+    incremental_unique_gain: int
+    incremental_keep_gain: int
+    duplication_rate: float
+    useful: bool
+
+
+@dataclass(frozen=True, slots=True)
+class StrategyRecommendation:
+    """Sugestão em memória; nunca modifica a estratégia que foi executada."""
+
+    current_requests: int
+    recommended_strategy: SearchStrategy
+    keep_query_keys: list[str]
+    drop_query_keys: list[str]
+    reasons: dict[str, str]
+
+
+@dataclass(frozen=True, slots=True)
 class MultiQueryDiscoveryResult:
     strategy: SearchStrategy
     query_summaries: list[QueryDiscoverySummary]
+    query_efficiencies: list[QueryEfficiency]
     provenance_by_job_url: dict[str, list[str]]
     total_raw_results: int
     total_jobs_before_dedup: int
@@ -126,6 +193,10 @@ class MultiQueryDiscoveryResult:
     review_count: int
     reject_count: int
     keep_rate: float
+    useful_query_count: int
+    wasted_query_count: int
+    requests_per_unique_job: float | None
+    requests_per_keep: float | None
     unique_jobs_by_source: dict[str, int]
     jobs_found_by_multiple_queries: int
     broad_unique_jobs: int
@@ -145,10 +216,12 @@ class MultiQueryDiscovery:
         *,
         jobicy_source_factory: Callable[[JobicySearchQuery], JobSource] | None = None,
         remotive_source_factory: Callable[[RemotiveSearchQuery], JobSource] | None = None,
+        usefulness_rule: QueryUsefulnessRule | None = None,
     ) -> None:
         self.strategy = strategy or create_default_search_strategy()
         self.jobicy_source_factory = jobicy_source_factory or self._jobicy_source
         self.remotive_source_factory = remotive_source_factory or self._remotive_source
+        self.usefulness_rule = usefulness_rule or QueryUsefulnessRule()
 
     @staticmethod
     def _jobicy_source(query: JobicySearchQuery) -> JobSource:
@@ -170,6 +243,8 @@ class MultiQueryDiscovery:
     def run(self, profile: CandidateProfile) -> MultiQueryDiscoveryResult:
         summaries: list[QueryDiscoverySummary] = []
         jobs_with_query: list[tuple[JobOpportunity, str, bool]] = []
+        efficiencies: list[QueryEfficiency] = []
+        previous_pipeline = process_opportunities([], profile)
         definitions = [
             ("Jobicy", query, self.jobicy_source_factory(query), JobicyJobAdapter())
             for query in self.strategy.jobicy_queries
@@ -186,8 +261,9 @@ class MultiQueryDiscovery:
                 else None
             )
             if ingestion is not None:
+                query_jobs = enrich_opportunities(ingestion.opportunities)
                 jobs_with_query.extend(
-                    (job, query.key, query.broad) for job in ingestion.opportunities
+                    (job, query.key, query.broad) for job in query_jobs
                 )
             summaries.append(
                 QueryDiscoverySummary(
@@ -205,17 +281,49 @@ class MultiQueryDiscovery:
                 )
             )
 
-        enriched = enrich_opportunities([item[0] for item in jobs_with_query])
+            current_pipeline = process_opportunities(
+                [item[0] for item in jobs_with_query], profile
+            )
+            unique_gain = (
+                current_pipeline.unique_opportunities
+                - previous_pipeline.unique_opportunities
+            )
+            keep_gain = current_pipeline.keep_count - previous_pipeline.keep_count
+            review_gain = current_pipeline.review_count - previous_pipeline.review_count
+            reject_gain = current_pipeline.reject_count - previous_pipeline.reject_count
+            converted = ingestion.converted_count if ingestion else 0
+            duplicate_jobs = max(0, converted - unique_gain)
+            efficiencies.append(
+                QueryEfficiency(
+                    source=source_name,
+                    query_name=query.name,
+                    query_key=query.key,
+                    broad=query.broad,
+                    jobs_received=len(source_result.records),
+                    jobs_converted=converted,
+                    unique_jobs_contributed=unique_gain,
+                    duplicate_jobs=duplicate_jobs,
+                    keep_contributed=keep_gain,
+                    review_contributed=review_gain,
+                    reject_contributed=reject_gain,
+                    incremental_unique_gain=unique_gain,
+                    incremental_keep_gain=keep_gain,
+                    duplication_rate=(duplicate_jobs / converted if converted else 0.0),
+                    useful=self.usefulness_rule.is_useful(unique_gain, keep_gain),
+                )
+            )
+            previous_pipeline = current_pipeline
+
         provenance_by_identity = {
             id(job): {query_key}
-            for job, (_, query_key, _) in zip(enriched, jobs_with_query)
+            for job, query_key, _ in jobs_with_query
         }
         broad_jobs = [
             job
-            for job, (_, _, broad) in zip(enriched, jobs_with_query)
+            for job, _, broad in jobs_with_query
             if broad
         ]
-        pipeline = process_opportunities(enriched, profile)
+        pipeline = previous_pipeline
         broad_pipeline = process_opportunities(broad_jobs, profile)
         for duplicate in pipeline.duplicate_records:
             provenance_by_identity[id(duplicate.primary)].update(
@@ -240,6 +348,7 @@ class MultiQueryDiscovery:
         return MultiQueryDiscoveryResult(
             strategy=self.strategy,
             query_summaries=summaries,
+            query_efficiencies=efficiencies,
             provenance_by_job_url=provenance,
             total_raw_results=sum(summary.received for summary in summaries),
             total_jobs_before_dedup=total_before,
@@ -252,6 +361,18 @@ class MultiQueryDiscovery:
             review_count=pipeline.review_count,
             reject_count=pipeline.reject_count,
             keep_rate=(pipeline.keep_count / pipeline.unique_opportunities if pipeline.unique_opportunities else 0.0),
+            useful_query_count=sum(item.useful for item in efficiencies),
+            wasted_query_count=sum(not item.useful for item in efficiencies),
+            requests_per_unique_job=(
+                self.strategy.expected_requests / pipeline.unique_opportunities
+                if pipeline.unique_opportunities
+                else None
+            ),
+            requests_per_keep=(
+                self.strategy.expected_requests / pipeline.keep_count
+                if pipeline.keep_count
+                else None
+            ),
             unique_jobs_by_source=unique_by_source,
             jobs_found_by_multiple_queries=sum(len(keys) > 1 for keys in provenance.values()),
             broad_unique_jobs=broad_pipeline.unique_opportunities,
@@ -261,3 +382,69 @@ class MultiQueryDiscovery:
             ranking=pipeline.ranked_opportunities,
             pipeline=pipeline,
         )
+
+
+def recommend_search_strategy(
+    result: MultiQueryDiscoveryResult,
+) -> StrategyRecommendation:
+    """Mantém broad e targeted úteis somente como recomendação desta execução."""
+
+    keep = {
+        item.query_key
+        for item in result.query_efficiencies
+        if item.broad or item.useful
+    }
+    all_keys = [
+        query.key
+        for query in (
+            *result.strategy.jobicy_queries,
+            *result.strategy.remotive_queries,
+        )
+    ]
+    keep_keys = [key for key in all_keys if key in keep]
+    drop_keys = [key for key in all_keys if key not in keep]
+    recommended = SearchStrategy(
+        name=f"Recommended from {result.strategy.name}",
+        jobicy_queries=tuple(
+            query for query in result.strategy.jobicy_queries if query.key in keep
+        ),
+        remotive_queries=tuple(
+            query for query in result.strategy.remotive_queries if query.key in keep
+        ),
+    )
+    return StrategyRecommendation(
+        current_requests=result.strategy.expected_requests,
+        recommended_strategy=recommended,
+        keep_query_keys=keep_keys,
+        drop_query_keys=drop_keys,
+        reasons={
+            key: "zero incremental unique or KEEP gain in this run"
+            for key in drop_keys
+        },
+    )
+
+
+def format_query_efficiency_report(
+    efficiencies: list[QueryEfficiency],
+) -> str:
+    """Formata ganho marginal sem imprimir vagas ou payloads extensos."""
+
+    lines: list[str] = []
+    current_source: str | None = None
+    for item in efficiencies:
+        if item.source != current_source:
+            if lines:
+                lines.append("")
+            lines.append(item.source)
+            current_source = item.source
+        lines.extend(
+            [
+                f"- {item.query_name}",
+                f"  received: {item.jobs_received}",
+                f"  incremental unique: +{item.incremental_unique_gain}",
+                f"  incremental KEEP: +{item.incremental_keep_gain}",
+                f"  duplicates: {item.duplicate_jobs}",
+                f"  useful: {'YES' if item.useful else 'NO'}",
+            ]
+        )
+    return "\n".join(lines)

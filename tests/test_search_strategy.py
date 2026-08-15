@@ -3,12 +3,16 @@ import unittest
 from daniel_job_agent import (
     JobicySearchQuery,
     MultiQueryDiscovery,
+    QueryUsefulnessRule,
     RemotiveSearchQuery,
     SearchStrategy,
     SourceResult,
     SourceStatus,
     create_daniel_profile,
     create_default_search_strategy,
+    create_full_search_strategy,
+    create_search_strategy,
+    recommend_search_strategy,
 )
 
 
@@ -80,21 +84,25 @@ class Factory:
 
 
 class SearchStrategyConfigurationTests(unittest.TestCase):
-    def test_default_strategy_has_broad_and_three_targeted_queries_per_source(self):
+    def test_default_strategy_is_broad_only(self):
         strategy = create_default_search_strategy()
-        self.assertEqual(strategy.name, "Daniel controlled sales discovery")
-        self.assertEqual(len(strategy.jobicy_queries), 4)
-        self.assertEqual(len(strategy.remotive_queries), 4)
-        self.assertEqual(strategy.expected_requests, 8)
+        self.assertEqual(strategy.name, "Daniel broad sales baseline")
+        self.assertEqual(len(strategy.jobicy_queries), 1)
+        self.assertEqual(len(strategy.remotive_queries), 1)
+        self.assertEqual(strategy.expected_requests, 2)
         self.assertTrue(strategy.jobicy_queries[0].broad)
         self.assertTrue(strategy.remotive_queries[0].broad)
+
+    def test_full_strategy_keeps_broad_and_three_targeted_per_source(self):
+        strategy = create_full_search_strategy()
+        self.assertEqual(strategy.expected_requests, 8)
         self.assertEqual(
             [query.tag for query in strategy.jobicy_queries[1:]],
             ["account executive", "business development", "sales development"],
         )
 
     def test_smaller_limits_keep_broad_query_first(self):
-        strategy = create_default_search_strategy(jobicy_limit=2, remotive_limit=1)
+        strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=1)
         self.assertEqual(strategy.expected_requests, 3)
         self.assertTrue(strategy.jobicy_queries[0].broad)
         self.assertTrue(strategy.remotive_queries[0].broad)
@@ -113,6 +121,12 @@ class SearchStrategyConfigurationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SearchStrategy("too many", (), remotive_queries)
 
+    def test_public_modes_select_broad_or_full_and_preserve_limits(self):
+        self.assertEqual(create_search_strategy("broad").expected_requests, 2)
+        self.assertEqual(create_search_strategy("full").expected_requests, 8)
+        with self.assertRaises(ValueError):
+            create_search_strategy("aggressive")
+
 
 class MultiQueryDiscoveryTests(unittest.TestCase):
     def run_strategy(self, strategy, jobicy_results, remotive_results):
@@ -128,7 +142,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
         return result
 
     def test_query_success_failure_and_counts_are_isolated(self):
-        strategy = create_default_search_strategy(jobicy_limit=2, remotive_limit=1)
+        strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=1)
         result = self.run_strategy(
             strategy,
             {
@@ -144,7 +158,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
         self.assertEqual(result.unique_jobs, 2)
 
     def test_all_jobicy_queries_can_fail_while_remotive_continues(self):
-        strategy = create_default_search_strategy(jobicy_limit=2, remotive_limit=1)
+        strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=1)
         result = self.run_strategy(
             strategy,
             {"broad_latam_sales": failure(), "account_executive": failure()},
@@ -154,7 +168,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
         self.assertEqual(result.unique_jobs_by_source, {"Jobicy": 0, "Remotive": 1})
 
     def test_intra_and_cross_source_dedup_preserve_provenance(self):
-        strategy = create_default_search_strategy(jobicy_limit=2, remotive_limit=1)
+        strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=1)
         jobicy = jobicy_record(1, companyName="Same Company")
         remotive = remotive_record(1, company_name="Same Company")
         result = self.run_strategy(
@@ -181,7 +195,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
         )
 
     def test_same_job_in_three_queries_appears_once_without_score_bonus(self):
-        three = create_default_search_strategy(jobicy_limit=3, remotive_limit=0)
+        three = create_full_search_strategy(jobicy_limit=3, remotive_limit=0)
         record = jobicy_record(1)
         multi = self.run_strategy(
             three,
@@ -193,7 +207,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
             {},
         )
         single = self.run_strategy(
-            create_default_search_strategy(jobicy_limit=1, remotive_limit=0),
+            create_full_search_strategy(jobicy_limit=1, remotive_limit=0),
             {"broad_latam_sales": success([record])},
             {},
         )
@@ -202,7 +216,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
         self.assertEqual(multi.ranking[0].match_score, single.ranking[0].match_score)
 
     def test_metrics_baseline_and_incremental_gain(self):
-        strategy = create_default_search_strategy(jobicy_limit=2, remotive_limit=1)
+        strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=1)
         result = self.run_strategy(
             strategy,
             {
@@ -220,7 +234,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
         self.assertEqual(result.keep_rate, 1.0)
 
     def test_warnings_errors_rejects_and_tracking_remain_available(self):
-        strategy = create_default_search_strategy(jobicy_limit=1, remotive_limit=1)
+        strategy = create_full_search_strategy(jobicy_limit=1, remotive_limit=1)
         result = self.run_strategy(
             strategy,
             {"broad_latam_sales": success([
@@ -243,7 +257,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
         self.assertIs(ranked_jobicy.normalized_job.tracking, tracking)
 
     def test_ranking_is_deterministic(self):
-        strategy = create_default_search_strategy(jobicy_limit=1, remotive_limit=1)
+        strategy = create_full_search_strategy(jobicy_limit=1, remotive_limit=1)
         inputs = (
             {"broad_latam_sales": success([jobicy_record(1)])},
             {"broad_sales": success([remotive_record(1)])},
@@ -253,6 +267,154 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
         self.assertEqual(
             [item.normalized_job.job_url for item in first.ranking],
             [item.normalized_job.job_url for item in second.ranking],
+        )
+
+
+class QueryEfficiencyTests(unittest.TestCase):
+    def run_strategy(self, strategy, jobicy_results, remotive_results):
+        return MultiQueryDiscovery(
+            strategy,
+            jobicy_source_factory=Factory(jobicy_results),
+            remotive_source_factory=Factory(remotive_results),
+        ).run(create_daniel_profile())
+
+    def test_query_with_incremental_keep_is_useful(self):
+        strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=0)
+        result = self.run_strategy(
+            strategy,
+            {
+                "broad_latam_sales": success([]),
+                "account_executive": success([jobicy_record(1)]),
+            },
+            {},
+        )
+        targeted = result.query_efficiencies[1]
+        self.assertEqual(targeted.incremental_unique_gain, 1)
+        self.assertEqual(targeted.incremental_keep_gain, 1)
+        self.assertEqual(targeted.keep_contributed, 1)
+        self.assertTrue(targeted.useful)
+
+    def test_query_adding_only_review_is_still_useful_unique_gain(self):
+        strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=0)
+        result = self.run_strategy(
+            strategy,
+            {
+                "broad_latam_sales": success([]),
+                "account_executive": success([
+                    jobicy_record(1, jobTitle="Sales Engineer")
+                ]),
+            },
+            {},
+        )
+        targeted = result.query_efficiencies[1]
+        self.assertEqual(targeted.review_contributed, 1)
+        self.assertEqual(targeted.incremental_keep_gain, 0)
+        self.assertTrue(targeted.useful)
+
+    def test_fully_duplicate_query_and_empty_query_are_wasted(self):
+        strategy = create_full_search_strategy(jobicy_limit=3, remotive_limit=0)
+        record = jobicy_record(1)
+        result = self.run_strategy(
+            strategy,
+            {
+                "broad_latam_sales": success([record]),
+                "account_executive": success([record]),
+                "business_development": success([]),
+            },
+            {},
+        )
+        duplicate = result.query_efficiencies[1]
+        empty = result.query_efficiencies[2]
+        self.assertEqual(duplicate.duplicate_jobs, 1)
+        self.assertEqual(duplicate.duplication_rate, 1.0)
+        self.assertFalse(duplicate.useful)
+        self.assertEqual(empty.jobs_received, 0)
+        self.assertFalse(empty.useful)
+        self.assertEqual(result.useful_query_count, 1)
+        self.assertEqual(result.wasted_query_count, 2)
+
+    def test_requests_per_unique_and_keep_are_safe(self):
+        strategy = create_default_search_strategy()
+        populated = self.run_strategy(
+            strategy,
+            {"broad_latam_sales": success([jobicy_record(1)])},
+            {"broad_sales": success([remotive_record(1)])},
+        )
+        self.assertEqual(populated.requests_per_unique_job, 1.0)
+        self.assertEqual(populated.requests_per_keep, 1.0)
+        empty = self.run_strategy(
+            strategy,
+            {"broad_latam_sales": success([])},
+            {"broad_sales": success([])},
+        )
+        self.assertIsNone(empty.requests_per_unique_job)
+        self.assertIsNone(empty.requests_per_keep)
+
+    def test_marginal_gain_depends_on_query_order(self):
+        record = jobicy_record(1)
+        first_strategy = SearchStrategy(
+            "first order",
+            (
+                JobicySearchQuery("broad", broad=True),
+                JobicySearchQuery("target_one", broad=False),
+                JobicySearchQuery("target_two", broad=False),
+            ),
+            (),
+        )
+        first = self.run_strategy(
+            first_strategy,
+            {
+                "broad": success([]),
+                "target_one": success([record]),
+                "target_two": success([record]),
+            },
+            {},
+        )
+        self.assertTrue(first.query_efficiencies[1].useful)
+        self.assertFalse(first.query_efficiencies[2].useful)
+
+    def test_configurable_usefulness_rule(self):
+        rule = QueryUsefulnessRule(minimum_unique_gain=2, minimum_keep_gain=2)
+        strategy = create_full_search_strategy(jobicy_limit=1, remotive_limit=0)
+        factory = Factory({"broad_latam_sales": success([jobicy_record(1)])})
+        result = MultiQueryDiscovery(
+            strategy,
+            jobicy_source_factory=factory,
+            remotive_source_factory=Factory({}),
+            usefulness_rule=rule,
+        ).run(create_daniel_profile())
+        self.assertFalse(result.query_efficiencies[0].useful)
+
+    def test_recommendation_keeps_broad_drops_zero_gain_and_does_not_mutate(self):
+        strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=1)
+        original_keys = [
+            query.key
+            for query in (*strategy.jobicy_queries, *strategy.remotive_queries)
+        ]
+        record = jobicy_record(1)
+        result = self.run_strategy(
+            strategy,
+            {
+                "broad_latam_sales": success([record]),
+                "account_executive": success([record]),
+            },
+            {"broad_sales": success([])},
+        )
+        recommendation = recommend_search_strategy(result)
+        self.assertEqual(
+            recommendation.keep_query_keys,
+            ["jobicy:broad_latam_sales", "remotive:broad_sales"],
+        )
+        self.assertEqual(
+            recommendation.drop_query_keys, ["jobicy:account_executive"]
+        )
+        self.assertEqual(recommendation.recommended_strategy.expected_requests, 2)
+        self.assertEqual(
+            [
+                query.key
+                for query in (*strategy.jobicy_queries, *strategy.remotive_queries)
+            ],
+            original_keys,
         )
 
 

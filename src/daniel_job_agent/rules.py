@@ -167,7 +167,12 @@ def classify_role_family(role: str) -> RoleFamily:
     title = _comparable(role)
     if any(
         _contains_phrase(title, phrase)
-        for phrase in ("pre-sales", "presales", "pre sales")
+        for phrase in (
+            "pre-sales",
+            "presales",
+            "pre sales",
+            "technical sales specialist",
+        )
     ):
         return RoleFamily.PRE_SALES
     if any(
@@ -197,7 +202,7 @@ def classify_role_family(role: str) -> RoleFamily:
         (RoleFamily.SALES_DEVELOPMENT, ("sales development representative", "business development representative", "sdr", "bdr")),
         (RoleFamily.SALES_LEADERSHIP, ("sales manager", "sales director", "director of sales", "vp sales", "vp of sales", "sales vp", "vice president of sales", "head of sales", "sdr director")),
         (RoleFamily.CLOSING_SALES, ("account executive", "sales executive", "inside sales", "sales representative", "full cycle sales", "business development executive")),
-        (RoleFamily.WRITING_CONTENT, ("copywriter", "content writer", "technical writer", "editor")),
+        (RoleFamily.WRITING_CONTENT, ("copywriter", "content writer", "technical writer", "writer", "editor")),
         (RoleFamily.MARKETING, ("marketing", "growth marketer", "demand generation")),
         (RoleFamily.PRODUCT, ("product manager", "product designer", "product owner")),
         (RoleFamily.ENGINEERING, ("software engineer", "data engineer", "backend engineer", "frontend engineer", "ai engineer", "machine learning engineer", "devops engineer", "engineer")),

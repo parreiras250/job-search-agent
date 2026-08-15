@@ -462,8 +462,14 @@ Targeted queries ──┼→ global dedup → pipeline → ranking
 Multiple sources ──┘
 ```
 
-A estratégia padrão usa quatro queries por fonte, totalizando no máximo oito
-requests por execução:
+A estratégia padrão foi calibrada após uma execução full com 70,4% de duplicação
+e nenhum ganho incremental. Agora o modo padrão/broad usa somente duas queries:
+
+- Jobicy broad: `geo=latam`, `industry=seller`, sem tag;
+- Remotive broad: `category=sales`.
+
+O modo full preserva toda a infraestrutura anterior, com quatro queries por
+fonte e no máximo oito requests:
 
 | Fonte | Query | Tipo |
 |---|---|---|
@@ -495,10 +501,36 @@ requests extras. O ganho incremental é `unique global - unique broad` e `KEEP
 global - KEEP broad`. Também são reportados resultados brutos, taxa de
 duplicação, KEEP rate, cobertura por fonte e vagas achadas por múltiplas queries.
 
+### Query efficiency e recomendação
+
+`QueryEfficiency` mede se uma query encontrou algo novo, separadamente do Match
+Score, que mede a aderência de uma vaga ao perfil. A avaliação é marginal e
+respeita a ordem da estratégia: cada query é comparada somente com as que vieram
+antes. Volume bruto não torna uma query útil.
+
+Por padrão, uma query é `useful` quando adiciona pelo menos uma vaga única ou um
+KEEP. Uma query com 50 resultados totalmente duplicados é `wasted`. O critério é
+configurável e o relatório também mostra contribuição de KEEP, REVIEW e REJECT,
+duplicatas, duplication rate, requests por vaga única e requests por KEEP.
+
+`recommend_search_strategy()` sempre mantém broad e sugere remover targeted com
+zero ganho incremental de unique e KEEP naquela execução. A recomendação cria um
+novo objeto em memória: não altera a estratégia executada e não salva histórico.
+Uma query inútil hoje pode ser útil em outra data; somente persistência futura
+poderá avaliar comportamento histórico.
+
 ### Demo multi-query
 
+Modo conservador padrão:
+
 ```bash
-PYTHONPATH=src python -m daniel_job_agent.multi_query_demo
+PYTHONPATH=src python -m daniel_job_agent.multi_query_demo --mode broad
+```
+
+Modo completo para nova medição controlada:
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.multi_query_demo --mode full
 ```
 
 O demo mostra estratégia, resumo por query, métricas, cobertura e top 20. A
@@ -546,8 +578,10 @@ Role
 `SALES_DEVELOPMENT`, `ACCOUNT_MANAGEMENT`, `SALES_LEADERSHIP`, `PRE_SALES`,
 `CUSTOMER_SUCCESS`, `PARTNERSHIPS`, Marketing, Engineering, Product, Operations,
 Writing/Content, Finance, Legal e HR/Recruiting. A precedência protege títulos
-compostos: `Sales Engineer` é Pre-Sales, não Engineering; `Technical Account
-Manager` é Account Management; `Product Marketing Manager` é Marketing.
+compostos: `Sales Engineer` e `Technical Sales Specialist` são Pre-Sales, não
+Engineering; `Technical Account Manager` é Account Management; `Product
+Marketing Manager` é Marketing. `Writer`, `Freelance Writer` e `Copywriter` são
+Writing/Content.
 
 `Seniority` usa somente sinais explícitos do título: Entry, Individual
 Contributor, Senior IC, Manager, Director, VP/Executive ou Unknown. Descrição,
@@ -745,6 +779,8 @@ Anos de experiência são tratados apenas como um sinal suave:
   sequencial, sem paralelismo ou estratégia multi-query.
 - A estratégia multi-query é uma camada separada, sequencial e limitada a quatro
   queries por fonte; não há retries, concorrência ou ajuste automático de termos.
+- Eficiência e recomendação existem somente em memória e refletem uma execução;
+  não há histórico persistente para concluir que uma query será sempre inútil.
 - Role Family e Seniority usam somente uma lista inicial de sinais explícitos do
   título; títulos ambíguos permanecem `OTHER`/`UNKNOWN`.
 - Customer Success e Partnerships são tratados como famílias relevantes pelo

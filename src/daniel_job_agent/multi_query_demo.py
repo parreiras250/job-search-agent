@@ -3,16 +3,27 @@
 import argparse
 
 from .profiles import create_daniel_profile
-from .search_strategy import MultiQueryDiscovery, create_default_search_strategy
+from .search_strategy import (
+    MultiQueryDiscovery,
+    create_search_strategy,
+    format_query_efficiency_report,
+    recommend_search_strategy,
+)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run the controlled Jobicy + Remotive multi-query strategy."
     )
-    parser.parse_args()
+    parser.add_argument(
+        "--mode",
+        choices=("broad", "full"),
+        default="broad",
+        help="broad uses 2 requests; full uses up to 8 (default: broad)",
+    )
+    args = parser.parse_args()
 
-    strategy = create_default_search_strategy()
+    strategy = create_search_strategy(args.mode)
     print("Strategy")
     print(f"Name: {strategy.name}")
     print(f"Jobicy queries: {len(strategy.jobicy_queries)}")
@@ -50,6 +61,34 @@ def main() -> None:
     print(f"Broad baseline KEEP: {result.broad_keep_count}")
     print(f"Incremental unique gain: {result.incremental_unique_gain:+d}")
     print(f"Incremental KEEP gain: {result.incremental_keep_gain:+d}")
+    print(f"Useful queries: {result.useful_query_count}")
+    print(f"Wasted queries: {result.wasted_query_count}")
+    print(
+        "Requests per unique job: "
+        f"{result.requests_per_unique_job:.2f}"
+        if result.requests_per_unique_job is not None
+        else "Requests per unique job: n/a"
+    )
+    print(
+        f"Requests per KEEP: {result.requests_per_keep:.2f}"
+        if result.requests_per_keep is not None
+        else "Requests per KEEP: n/a"
+    )
+
+    print("\nEfficiency")
+    print(format_query_efficiency_report(result.query_efficiencies))
+
+    recommendation = recommend_search_strategy(result)
+    print("\nRecommended next-run strategy")
+    print("Keep:")
+    for key in recommendation.keep_query_keys:
+        print(f"- {key}")
+    print("Drop:")
+    if recommendation.drop_query_keys:
+        for key in recommendation.drop_query_keys:
+            print(f"- {key}: {recommendation.reasons[key]}")
+    else:
+        print("- none")
 
     print("\nTop global opportunities")
     for item in result.ranking[:20]:

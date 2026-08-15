@@ -10,6 +10,7 @@ from .ingestion import (
     BaseJobAdapter,
     BatchIngestionResult,
     GenericJobAdapter,
+    GreenhouseJobAdapter,
     IngestionError,
     IngestionErrorType,
     IngestionResult,
@@ -43,6 +44,13 @@ from .rules import (
     normalize_location,
     normalize_role,
 )
+from .sources import (
+    GreenhouseJobSource,
+    JobSource,
+    SourceResult,
+    SourceStatus,
+    build_greenhouse_jobs_url,
+)
 
 __all__ = [
     "ApplicationStatus",
@@ -53,11 +61,14 @@ __all__ = [
     "DuplicateRecord",
     "GeographicEligibility",
     "GenericJobAdapter",
+    "GreenhouseJobAdapter",
+    "GreenhouseJobSource",
     "IngestionError",
     "IngestionErrorType",
     "IngestionResult",
     "IngestionWarning",
     "JobOpportunity",
+    "JobSource",
     "MatchEvaluation",
     "MockGreenhouseAdapter",
     "MockLeverAdapter",
@@ -66,8 +77,11 @@ __all__ = [
     "RetentionDecision",
     "RolePriority",
     "ScoreWeights",
+    "SourceResult",
+    "SourceStatus",
     "are_probably_duplicates",
     "calculate_match_score",
+    "build_greenhouse_jobs_url",
     "classify_role",
     "combine_ingestion_batches",
     "create_daniel_profile",

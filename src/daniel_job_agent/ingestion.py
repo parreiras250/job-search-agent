@@ -315,6 +315,36 @@ class MockLeverAdapter(BaseJobAdapter):
     years_field = "minimum_years"
 
 
+class GreenhouseJobAdapter(BaseJobAdapter):
+    """Converte o formato real da listagem pública do Greenhouse."""
+
+    source_name = "Greenhouse public Job Board"
+
+    def __init__(self, company_name: str) -> None:
+        if not company_name.strip():
+            raise ValueError("company_name cannot be empty")
+        self.company_name = company_name.strip()
+
+    def adapt(self, record: RawJobRecord) -> IngestionResult:
+        location_value = record.get("location")
+        location = (
+            location_value.get("name")
+            if isinstance(location_value, Mapping)
+            else None
+        )
+        mapped: dict[str, object] = {
+            "company": self.company_name,
+            "role": record.get("title"),
+            "job_url": record.get("absolute_url"),
+            "location": location,
+            "description": record.get("content"),
+            # These values are not structured in the list-jobs response.
+            "remote": None,
+            "brazil_eligible": None,
+        }
+        return super().adapt(mapped)
+
+
 def ingest_batch(
     records: Iterable[RawJobRecord], adapter: BaseJobAdapter
 ) -> BatchIngestionResult:

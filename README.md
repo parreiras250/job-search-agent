@@ -29,13 +29,16 @@ daniel-job-agent/
 │       ├── __init__.py       # Define o pacote Python
 │       ├── demo.py           # Demonstração executável no terminal
 │       ├── demo_data.py      # Registros brutos e vagas fictícias
+│       ├── greenhouse_demo.py # Consulta manual de um board público
 │       ├── ingestion.py      # Adapters e ingestão local em lote
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
 │       ├── pipeline.py       # Processamento em lote e ranking
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
-│       └── rules.py          # Regras locais de classificação e decisão
+│       ├── rules.py          # Regras locais de classificação e decisão
+│       └── sources.py        # Leitura HTTP de fontes externas
 ├── tests/
 │   ├── test_candidate_profile.py
+│   ├── test_greenhouse_source.py
 │   ├── test_ingestion.py
 │   ├── test_job_opportunity.py
 │   ├── test_pipeline.py
@@ -200,6 +203,52 @@ válidas e os erros separadamente. `combine_ingestion_batches()` reúne resultad
 de diferentes adapters antes de enviar apenas as oportunidades válidas ao
 pipeline.
 
+## Greenhouse público
+
+[Greenhouse](https://www.greenhouse.com/) é uma plataforma usada por empresas
+para publicar e administrar processos seletivos. Um job board público é a página
+de vagas publicadas por uma empresa. O projeto lê somente o endpoint público de
+listagem da [Greenhouse Job Board API](https://developers.greenhouse.io/job-board),
+sem API key, login ou acesso ao sistema interno de recrutamento.
+
+```text
+Greenhouse public Job Board
+→ GreenhouseJobSource
+→ GreenhouseJobAdapter
+→ JobOpportunity
+→ pipeline
+→ ranking
+```
+
+`JobSource` define apenas a responsabilidade de obter registros brutos externos.
+`GreenhouseJobSource` monta uma URL validada, faz um único HTTP GET com timeout e
+User-Agent e transforma erros HTTP, conexão, timeout e JSON inválido em
+`SourceResult`. Uma resposta com zero vagas é um sucesso com status `NO_JOBS`.
+
+`GreenhouseJobAdapter` converte os campos reais do payload público para
+`JobOpportunity`. Source e adapter são separados porque obter JSON pela rede é
+uma responsabilidade diferente de validar e padronizar cada vaga. O pipeline
+continua conhecendo apenas `JobOpportunity` e não contém código do Greenhouse.
+
+A listagem pública fornece título, URL, localização e, com `content=true`, o
+conteúdo da descrição. Ela não fornece de forma estruturada e consistente
+remoto, elegibilidade para o Brasil, salário, experiência, ferramentas ou
+indústria. Esses campos permanecem `None` e a descrição não é interpretada.
+
+### Consulta manual de um board real
+
+Identifique o token público na URL do board e informe também o nome de exibição
+da empresa:
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.greenhouse_demo BOARD_TOKEN "Company Name"
+```
+
+Esse comando realiza uma única consulta controlada, converte as vagas válidas e
+mostra até dez oportunidades ordenadas. Ele não envia candidaturas e não deve ser
+usado para descobrir tokens ou consultar empresas em massa. A consulta real não
+faz parte dos testes automatizados.
+
 ## Pipeline local
 
 O pipeline recebe várias `JobOpportunity` e um `CandidateProfile`, aplica as
@@ -348,6 +397,10 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 - A lista de cargos reconhecidos é intencionalmente pequena.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
+- A fonte real suporta somente um board Greenhouse informado explicitamente.
+- O nome da empresa precisa ser informado junto com o token porque a resposta de
+  listagem não o fornece de forma confiável.
+- Não há retries, paginação adicional, descoberta de boards ou consultas em lote.
 - Booleanos aceitam somente valores reais ou os textos `"true"` e `"false"`.
 - Salários aceitam somente números simples; moedas formatadas como `"USD 80k"`
   geram warning e permanecem como `None`.
@@ -369,5 +422,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Adicionar suporte local a arquivos JSON contendo os mesmos registros brutos,
-reutilizando os adapters e mantendo a leitura de arquivo separada da conversão.
+Adicionar cache local opcional para guardar a última resposta pública e permitir
+comparações manuais sem repetir uma consulta de rede.

@@ -50,6 +50,7 @@ def main() -> None:
         print(
             f"{item.rank}. {job.role} — {job.company} | {job.location} "
             f"| Score {item.match_score} | {item.retention_decision.value} "
+            f"| {item.role_family.value} | {item.seniority.value} "
             f"| {job.source} | {job.job_url}"
         )
 

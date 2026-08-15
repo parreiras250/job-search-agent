@@ -19,6 +19,39 @@ class ApplicationStatus(str, Enum):
     WITHDRAWN = "WITHDRAWN"
 
 
+class RoleFamily(str, Enum):
+    """Famílias amplas de função identificadas pelo título da vaga."""
+
+    CLOSING_SALES = "CLOSING_SALES"
+    SALES_DEVELOPMENT = "SALES_DEVELOPMENT"
+    ACCOUNT_MANAGEMENT = "ACCOUNT_MANAGEMENT"
+    SALES_LEADERSHIP = "SALES_LEADERSHIP"
+    PRE_SALES = "PRE_SALES"
+    CUSTOMER_SUCCESS = "CUSTOMER_SUCCESS"
+    PARTNERSHIPS = "PARTNERSHIPS"
+    MARKETING = "MARKETING"
+    ENGINEERING = "ENGINEERING"
+    PRODUCT = "PRODUCT"
+    OPERATIONS = "OPERATIONS"
+    WRITING_CONTENT = "WRITING_CONTENT"
+    FINANCE = "FINANCE"
+    LEGAL = "LEGAL"
+    HR_RECRUITING = "HR_RECRUITING"
+    OTHER = "OTHER"
+
+
+class Seniority(str, Enum):
+    """Senioridade inferida somente por sinais explícitos do título."""
+
+    ENTRY = "ENTRY"
+    INDIVIDUAL_CONTRIBUTOR = "INDIVIDUAL_CONTRIBUTOR"
+    SENIOR_IC = "SENIOR_IC"
+    MANAGER = "MANAGER"
+    DIRECTOR = "DIRECTOR"
+    VP_EXECUTIVE = "VP_EXECUTIVE"
+    UNKNOWN = "UNKNOWN"
+
+
 @dataclass(slots=True)
 class ApplicationTracking:
     """Dados manuais do CRM, separados das informações publicadas da vaga.
@@ -45,6 +78,10 @@ class CandidateProfile:
     years_experience: float | None
     target_roles: list[str] = field(default_factory=list)
     secondary_roles: list[str] = field(default_factory=list)
+    primary_role_families: list[RoleFamily] = field(default_factory=list)
+    relevant_role_families: list[RoleFamily] = field(default_factory=list)
+    stretch_role_families: list[RoleFamily] = field(default_factory=list)
+    out_of_focus_role_families: list[RoleFamily] = field(default_factory=list)
     preferred_markets: list[str] = field(default_factory=list)
     remote_only: bool = True
     brazil_based: bool = True

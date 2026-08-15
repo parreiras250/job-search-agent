@@ -47,6 +47,7 @@ daniel-job-agent/
 │       └── sources.py        # Leitura HTTP de fontes externas
 ├── tests/
 │   ├── test_candidate_profile.py
+│   ├── test_career_fit.py
 │   ├── test_discovery.py
 │   ├── test_enrichment.py
 │   ├── test_greenhouse_source.py
@@ -471,6 +472,59 @@ As regras são deliberadamente conservadoras. Elas não tentam interpretar
 senioridade, salário, ferramentas, indústria, elegibilidade ou remoto a partir
 de frases ambíguas. Ausência de informação não vira `False`, gap ou rejeição.
 
+## Role Family, Seniority e Career Fit
+
+A avaliação com `CandidateProfile` agora separa três conceitos antes de calcular
+o Match Score:
+
+```text
+Role
+→ Role Family
+→ Seniority
+→ Candidate Career Fit
+→ Match Score
+```
+
+`RoleFamily` agrupa títulos em famílias expansíveis, como `CLOSING_SALES`,
+`SALES_DEVELOPMENT`, `ACCOUNT_MANAGEMENT`, `SALES_LEADERSHIP`, `PRE_SALES`,
+`CUSTOMER_SUCCESS`, `PARTNERSHIPS`, Marketing, Engineering, Product, Operations,
+Writing/Content, Finance, Legal e HR/Recruiting. A precedência protege títulos
+compostos: `Sales Engineer` é Pre-Sales, não Engineering; `Technical Account
+Manager` é Account Management; `Product Marketing Manager` é Marketing.
+
+`Seniority` usa somente sinais explícitos do título: Entry, Individual
+Contributor, Senior IC, Manager, Director, VP/Executive ou Unknown. Descrição,
+salário e frases sobre liderar equipes não participam dessa classificação.
+`Account Manager`, `Technical Account Manager` e `Customer Success Manager` são
+tratados como títulos IC, pois `Manager` nesses casos normalmente nomeia a
+função, não confirma gestão de pessoas.
+
+O perfil configura suas famílias principais, relevantes, stretch e fora do
+foco. Para o perfil atual, Closing Sales é a prioridade principal; Account
+Management, Sales Development, Customer Success e Partnerships são relevantes;
+Sales Leadership e Pre-Sales são stretch. As demais famílias explicitamente
+configuradas ficam fora do foco.
+
+Role Family é um sinal forte: os pesos padrão são `+65` para a família principal,
+`+45` para relevante, `+25` para stretch, `+5` para desconhecida e `-70` para
+fora do foco. Esse bloco substitui os antigos pontos de keyword no cálculo com
+perfil, evitando double counting. O cálculo legado sem perfil permanece igual.
+
+Senioridade é sempre um soft signal. IC e Senior IC geram explicações positivas
+sem pontos extras; Entry recebe `-15`, Manager `-3`, Director `-10` e
+VP/Executive `-15`. Unknown não perde pontos e aparece em `unknowns`. Entry,
+Director ou VP nunca causam `REJECT` isoladamente. Director/VP em Sales
+Leadership normalmente ficam em `REVIEW`; uma família explicitamente fora do
+foco pode gerar `REJECT` mesmo que a descrição mencione customers ou sales.
+
+Exemplos conceituais:
+
+- Account Executive: Closing Sales + IC, forte candidato a `KEEP`;
+- Graduate SDR: Sales Development + Entry, válido mas abaixo de um AE comparável;
+- Regional Sales Director: Sales Leadership + Director, stretch e `REVIEW`;
+- Sales Engineer: Pre-Sales, stretch sem rejeição automática;
+- Freelance Copywriter: Writing/Content, fora do foco e `REJECT`.
+
 ## Pipeline local
 
 O pipeline recebe várias `JobOpportunity` e um `CandidateProfile`, aplica as
@@ -632,6 +686,11 @@ Anos de experiência são tratados apenas como um sinal suave:
 - Não há retries, paginação adicional, descoberta de boards ou consultas em lote.
 - O discovery multi-source usa somente uma consulta padrão por fonte, em ordem
   sequencial, sem paralelismo ou estratégia multi-query.
+- Role Family e Seniority usam somente uma lista inicial de sinais explícitos do
+  título; títulos ambíguos permanecem `OTHER`/`UNKNOWN`.
+- Customer Success e Partnerships são tratados como famílias relevantes pelo
+  título; a presença de responsabilidade comercial ainda não é interpretada da
+  descrição.
 - Booleanos aceitam somente valores reais ou os textos `"true"` e `"false"`.
 - Campos salariais estruturados aceitam somente números simples; textos livres
   da Remotive são preservados separadamente em `salary_text`.
@@ -656,5 +715,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Executar uma única demonstração multi-source manual e comparar a cobertura do
-ranking global com os resultados individuais antes de criar múltiplas queries.
+Executar novamente uma única demonstração multi-source manual e comparar a nova
+ordenação por Career Fit com o ranking anterior, sem ampliar queries ainda.

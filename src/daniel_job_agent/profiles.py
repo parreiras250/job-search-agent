@@ -1,6 +1,6 @@
 """Perfis profissionais locais usados pelo Daniel Job Agent."""
 
-from .models import CandidateProfile
+from .models import CandidateProfile, RoleFamily
 
 
 def create_daniel_profile() -> CandidateProfile:
@@ -22,6 +22,27 @@ def create_daniel_profile() -> CandidateProfile:
             "BDR",
             "Sales Development Representative",
             "Business Development Representative",
+        ],
+        primary_role_families=[RoleFamily.CLOSING_SALES],
+        relevant_role_families=[
+            RoleFamily.ACCOUNT_MANAGEMENT,
+            RoleFamily.SALES_DEVELOPMENT,
+            RoleFamily.CUSTOMER_SUCCESS,
+            RoleFamily.PARTNERSHIPS,
+        ],
+        stretch_role_families=[
+            RoleFamily.SALES_LEADERSHIP,
+            RoleFamily.PRE_SALES,
+        ],
+        out_of_focus_role_families=[
+            RoleFamily.MARKETING,
+            RoleFamily.ENGINEERING,
+            RoleFamily.PRODUCT,
+            RoleFamily.OPERATIONS,
+            RoleFamily.WRITING_CONTENT,
+            RoleFamily.FINANCE,
+            RoleFamily.LEGAL,
+            RoleFamily.HR_RECRUITING,
         ],
         preferred_markets=["United States", "U.S. market"],
         remote_only=True,

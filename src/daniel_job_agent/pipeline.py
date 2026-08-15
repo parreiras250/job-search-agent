@@ -3,7 +3,7 @@
 from dataclasses import dataclass, replace
 from typing import Iterable
 
-from .models import CandidateProfile, JobOpportunity
+from .models import CandidateProfile, JobOpportunity, RoleFamily, Seniority
 from .rules import (
     MatchEvaluation,
     RetentionDecision,
@@ -35,6 +35,8 @@ class ProcessedOpportunity:
     potential_gaps: list[str]
     unknowns: list[str]
     retention_decision: RetentionDecision
+    role_family: RoleFamily
+    seniority: Seniority
     rank: int | None = None
 
 
@@ -152,6 +154,8 @@ def process_opportunities(
                 potential_gaps=evaluation.potential_gaps,
                 unknowns=evaluation.unknowns,
                 retention_decision=decision,
+                role_family=evaluation.role_family,
+                seniority=evaluation.seniority,
             )
         )
 

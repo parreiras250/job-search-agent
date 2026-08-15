@@ -40,6 +40,16 @@ from .pipeline import (
     process_opportunities,
 )
 from .profiles import create_daniel_profile
+from .repository import (
+    DEFAULT_DATABASE_PATH,
+    JobRepository,
+    StoredOpportunity,
+    SyncError,
+    SyncResult,
+    SyncStatus,
+    SyncedOpportunity,
+    sync_opportunities,
+)
 from .rules import (
     GeographicEligibility,
     MatchEvaluation,
@@ -97,6 +107,7 @@ __all__ = [
     "BatchIngestionResult",
     "CandidateProfile",
     "DuplicateRecord",
+    "DEFAULT_DATABASE_PATH",
     "GeographicEligibility",
     "GenericJobAdapter",
     "GreenhouseJobAdapter",
@@ -107,6 +118,7 @@ __all__ = [
     "IngestionWarning",
     "JobicyDiscoveryConfig",
     "JobOpportunity",
+    "JobRepository",
     "JobSource",
     "JobicyJobAdapter",
     "JobicyJobSource",
@@ -135,6 +147,11 @@ __all__ = [
     "ScoreWeights",
     "SearchStrategy",
     "StrategyRecommendation",
+    "StoredOpportunity",
+    "SyncError",
+    "SyncResult",
+    "SyncStatus",
+    "SyncedOpportunity",
     "Seniority",
     "SourceResult",
     "SourceDiscoverySummary",
@@ -168,4 +185,5 @@ __all__ = [
     "ingest_batch",
     "process_opportunities",
     "recommend_search_strategy",
+    "sync_opportunities",
 ]

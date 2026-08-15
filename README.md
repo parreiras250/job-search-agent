@@ -17,6 +17,8 @@ cargos desejados, ferramentas, indústrias e preferências de trabalho.
 O acompanhamento manual do processo seletivo fica separado dos dados do anúncio.
 Greenhouse, Lever, Jobicy e Remotive podem ser consultados manualmente por seus
 endpoints públicos.
+O resultado processado também pode ser salvo localmente em SQLite, permitindo
+reconhecer vagas novas, já conhecidas ou atualizadas entre execuções.
 Ainda **não** há descoberta automática de empresas, scraping, inteligência
 artificial, conexão com Google Sheets ou automação semanal.
 
@@ -42,7 +44,9 @@ daniel-job-agent/
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
 │       ├── multi_query_demo.py # Discovery controlado por múltiplas queries
 │       ├── pipeline.py       # Processamento em lote e ranking
+│       ├── persistence_demo.py # Demonstração offline do histórico SQLite
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
+│       ├── repository.py     # Persistência local centralizada em SQLite
 │       ├── reporting.py      # Contagens compartilhadas dos demos reais
 │       ├── rules.py          # Regras locais de classificação e decisão
 │       ├── search_strategy.py # Estratégia e métricas multi-query
@@ -59,6 +63,7 @@ daniel-job-agent/
 │   ├── test_jobicy_source.py
 │   ├── test_remotive_source.py
 │   ├── test_pipeline.py
+│   ├── test_repository.py
 │   ├── test_rules.py
 │   └── test_search_strategy.py
 ├── .env.example              # Exemplo de configurações e segredos
@@ -686,6 +691,59 @@ atualizações automáticas do anúncio não os sobrescrevam.
 Os status disponíveis começam em `NOT_APPLIED` e incluem as etapas de aplicação,
 entrevistas, oferta, rejeição e desistência.
 
+## Histórico local com SQLite
+
+SQLite é um banco de dados leve incluído na biblioteca padrão do Python. Ele
+guarda todo o histórico em um único arquivo local, sem servidor e sem pacote
+externo. O fluxo agora pode terminar em:
+
+```text
+Discovery
+→ Pipeline
+→ SQLite Repository
+→ History
+```
+
+`JobRepository` centraliza todo o SQL e cria a tabela `opportunities`
+automaticamente com `CREATE TABLE IF NOT EXISTS`. O caminho padrão é
+`data/job_agent.db`, mas testes e demonstrações podem usar `:memory:` ou um
+arquivo temporário. Arquivos `*.db`, `*.sqlite` e `*.sqlite3` são ignorados pelo
+Git e nunca devem armazenar secrets, credenciais, tokens ou conteúdo de `.env`.
+
+A tabela preserva identificação, conteúdo da vaga, remuneração, datas,
+avaliação do pipeline, estado da vaga e CRM manual. Listas e explicações são
+JSON text simples. Booleanos mantêm três estados no SQLite: `1` para `True`, `0`
+para `False` e `NULL` para desconhecido. Timestamps são gravados em UTC com
+offset explícito.
+
+Cada sincronização classifica a oportunidade como:
+
+- `NEW`: ainda não existe; recebe `first_seen_at` e `last_seen_at`;
+- `EXISTING`: existe e não mudou; atualiza `last_seen_at` e `last_checked`;
+- `UPDATED`: existe e algum dado automático mudou; atualiza os dados
+  automáticos e os timestamps.
+
+`first_seen_at` registra quando a vaga entrou no histórico e não muda.
+`last_seen_at` registra a execução mais recente em que ela apareceu. Ausência em
+uma execução não fecha a vaga e não existe inferência automática de reabertura.
+
+A identidade segue a mesma base da deduplicação existente, nesta ordem: URL
+normalizada; `external_id` junto da fonte; e, como fallback, empresa e cargo
+normalizados. A sincronização nunca sobrescreve status de candidatura, datas de
+aplicação, recrutador, próximo passo ou notas. Esses campos só mudam por uma
+operação manual explícita, como `update_tracking`.
+
+Para executar a demonstração offline com duas sincronizações consecutivas:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.persistence_demo
+```
+
+Ela usa um banco temporário, mostra `NEW`, `EXISTING` e `UPDATED`, e confirma que
+o CRM manual permanece após uma atualização automática. A função
+`sync_opportunities` aceita diretamente um `PipelineResult` ou uma coleção de
+`ProcessedOpportunity`; ela não executa discovery.
+
 ## Como funciona o fluxo de decisão
 
 Para cada vaga fornecida localmente ao Python:
@@ -780,7 +838,11 @@ Anos de experiência são tratados apenas como um sinal suave:
 - A estratégia multi-query é uma camada separada, sequencial e limitada a quatro
   queries por fonte; não há retries, concorrência ou ajuste automático de termos.
 - Eficiência e recomendação existem somente em memória e refletem uma execução;
-  não há histórico persistente para concluir que uma query será sempre inútil.
+  o histórico SQLite ainda não agrega métricas de queries para concluir que uma
+  consulta será sempre inútil.
+- O schema SQLite é inicial e não possui framework de migrations. Mudanças de
+  schema futuras precisarão de uma migração explícita que preserve os dados.
+- Vagas que deixam de aparecer não são marcadas como fechadas automaticamente.
 - Role Family e Seniority usam somente uma lista inicial de sinais explícitos do
   título; títulos ambíguos permanecem `OTHER`/`UNKNOWN`.
 - Customer Success e Partnerships são tratados como famílias relevantes pelo
@@ -810,5 +872,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Executar uma única demonstração multi-query manual e comparar o ganho incremental
-contra a baseline broad antes de alterar termos ou limites.
+Integrar explicitamente uma execução manual de discovery ao repository, mantendo
+o banco local e sem adicionar agendamento automático.

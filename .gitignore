@@ -25,3 +25,8 @@ htmlcov/
 # Dados locais (mantém apenas a documentação da pasta)
 data/*
 !data/.gitkeep
+
+# Bancos locais de histórico
+*.db
+*.sqlite
+*.sqlite3

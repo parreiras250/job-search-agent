@@ -1,5 +1,7 @@
 """Componentes públicos do Daniel Job Agent."""
 
+from .agent import AgentRunResult, DanielJobAgent, create_broad_discovery
+
 from .discovery import (
     JobicyDiscoveryConfig,
     MultiSourceDiscovery,
@@ -103,10 +105,12 @@ from .sources import (
 __all__ = [
     "ApplicationStatus",
     "ApplicationTracking",
+    "AgentRunResult",
     "BaseJobAdapter",
     "BatchIngestionResult",
     "CandidateProfile",
     "DuplicateRecord",
+    "DanielJobAgent",
     "DEFAULT_DATABASE_PATH",
     "GeographicEligibility",
     "GenericJobAdapter",
@@ -167,6 +171,7 @@ __all__ = [
     "classify_seniority",
     "combine_ingestion_batches",
     "create_daniel_profile",
+    "create_broad_discovery",
     "create_default_search_strategy",
     "create_full_search_strategy",
     "create_search_strategy",

@@ -19,6 +19,8 @@ Greenhouse, Lever, Jobicy e Remotive podem ser consultados manualmente por seus
 endpoints públicos.
 O resultado processado também pode ser salvo localmente em SQLite, permitindo
 reconhecer vagas novas, já conhecidas ou atualizadas entre execuções.
+Um comando principal conecta as consultas broad de Jobicy e Remotive ao pipeline
+e ao histórico SQLite em uma única execução explícita.
 Ainda **não** há descoberta automática de empresas, scraping, inteligência
 artificial, conexão com Google Sheets ou automação semanal.
 
@@ -31,6 +33,7 @@ daniel-job-agent/
 ├── src/
 │   └── daniel_job_agent/
 │       ├── __init__.py       # Define o pacote Python
+│       ├── agent.py          # Orquestra discovery, pipeline e persistência
 │       ├── demo.py           # Demonstração executável no terminal
 │       ├── demo_data.py      # Registros brutos e vagas fictícias
 │       ├── discovery.py      # Combinação Jobicy + Remotive
@@ -48,11 +51,13 @@ daniel-job-agent/
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
 │       ├── repository.py     # Persistência local centralizada em SQLite
 │       ├── reporting.py      # Contagens compartilhadas dos demos reais
+│       ├── run_agent.py      # CLI principal do fluxo end-to-end
 │       ├── rules.py          # Regras locais de classificação e decisão
 │       ├── search_strategy.py # Estratégia e métricas multi-query
 │       └── sources.py        # Leitura HTTP de fontes externas
 ├── tests/
 │   ├── test_candidate_profile.py
+│   ├── test_agent.py
 │   ├── test_career_fit.py
 │   ├── test_discovery.py
 │   ├── test_enrichment.py
@@ -744,6 +749,54 @@ o CRM manual permanece após uma atualização automática. A função
 `sync_opportunities` aceita diretamente um `PipelineResult` ou uma coleção de
 `ProcessedOpportunity`; ela não executa discovery.
 
+## Execução end-to-end real
+
+O comando principal executa explicitamente o primeiro fluxo real completo:
+
+```text
+Jobicy broad + Remotive broad
+→ MultiSourceDiscovery
+→ enrichment
+→ pipeline e ranking
+→ SQLite
+→ NEW / EXISTING / UPDATED
+```
+
+A estratégia operacional padrão é a broad já centralizada em
+`create_default_search_strategy`: Jobicy usa `geo=latam`, `industry=seller` e
+`count=100`; Remotive usa `category=sales`. O orquestrador apenas converte essa
+configuração para `MultiSourceDiscovery`: não replica adapters, enriquecimento,
+score, deduplicação nem SQL.
+
+Para fazer a primeira execução real manualmente:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.run_agent --db data/job_agent.db
+```
+
+`--mode broad` também pode ser informado explicitamente. Para experimentar com
+outro banco, use por exemplo `--db /tmp/test-job-agent.db`. O relatório mostra
+contagens de discovery e persistência, fontes com falha e até dez oportunidades
+NEW, priorizando `KEEP` e depois `REVIEW`. Vagas `REJECT` também são persistidas
+para histórico e auditoria, mas não aparecem nessa lista curta.
+
+Na primeira execução, vagas ainda desconhecidas são `NEW`. Nas seguintes, vagas
+iguais são `EXISTING` e mudanças automáticas relevantes geram `UPDATED`. Todo o
+CRM manual continua preservado. Se uma fonte falhar, a outra ainda é processada;
+se ambas falharem, a execução retorna um resumo vazio e o banco existente não é
+alterado. Uma vaga ausente nunca é marcada automaticamente como fechada, pois a
+fonte pode ter falhado ou retornado apenas parte dos resultados.
+
+### Apagar o banco somente em desenvolvimento
+
+Não existe comando automático para reset. Se for realmente necessário começar
+um ambiente de desenvolvimento do zero, encerre qualquer execução e apague
+manualmente somente o arquivo escolhido, por exemplo `data/job_agent.db`.
+
+**Atenção:** essa ação apaga permanentemente todo o histórico e os campos
+manuais do CRM daquele banco. Confirme cuidadosamente o caminho e mantenha uma
+cópia quando os dados forem importantes. Nunca apague bancos por rotina.
+
 ## Como funciona o fluxo de decisão
 
 Para cada vaga fornecida localmente ao Python:
@@ -843,6 +896,8 @@ Anos de experiência são tratados apenas como um sinal suave:
 - O schema SQLite é inicial e não possui framework de migrations. Mudanças de
   schema futuras precisarão de uma migração explícita que preserve os dados.
 - Vagas que deixam de aparecer não são marcadas como fechadas automaticamente.
+- O agente só roda quando o comando é iniciado manualmente; ainda não há
+  scheduler, notificações ou automação semanal.
 - Role Family e Seniority usam somente uma lista inicial de sinais explícitos do
   título; títulos ambíguos permanecem `OTHER`/`UNKNOWN`.
 - Customer Success e Partnerships são tratados como famílias relevantes pelo
@@ -872,5 +927,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Integrar explicitamente uma execução manual de discovery ao repository, mantendo
-o banco local e sem adicionar agendamento automático.
+Executar manualmente o agente broad e revisar o primeiro resumo persistido antes
+de considerar qualquer automação ou regra de fechamento.

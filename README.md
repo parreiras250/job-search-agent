@@ -31,6 +31,8 @@ daniel-job-agent/
 │       ├── __init__.py       # Define o pacote Python
 │       ├── demo.py           # Demonstração executável no terminal
 │       ├── demo_data.py      # Registros brutos e vagas fictícias
+│       ├── discovery.py      # Combinação Jobicy + Remotive
+│       ├── discovery_demo.py # Ranking global das fontes amplas
 │       ├── enrichment.py     # Extração determinística de sinais explícitos
 │       ├── greenhouse_demo.py # Consulta manual de um board público
 │       ├── ingestion.py      # Adapters e ingestão local em lote
@@ -45,6 +47,7 @@ daniel-job-agent/
 │       └── sources.py        # Leitura HTTP de fontes externas
 ├── tests/
 │   ├── test_candidate_profile.py
+│   ├── test_discovery.py
 │   ├── test_enrichment.py
 │   ├── test_greenhouse_source.py
 │   ├── test_ingestion.py
@@ -404,6 +407,45 @@ horas. Não há polling, retries agressivos nem múltiplas buscas automáticas.
 Qualquer saída futura deve manter a URL original e identificar `Remotive` como
 fonte, conforme os termos de atribuição. A consulta real não faz parte dos testes.
 
+## Discovery multi-source
+
+`MultiSourceDiscovery` executa uma consulta Jobicy e uma consulta Remotive,
+converte cada resposta com seu próprio adapter e reúne as oportunidades válidas
+antes do enrichment e do pipeline global.
+
+```text
+Jobicy  ─┐
+         ├→ MultiSourceDiscovery → global dedup → pipeline → ranking
+Remotive ┘
+```
+
+As configurações padrão ficam em estruturas pequenas e alteráveis:
+
+- Jobicy: `geo=latam`, `industry=seller`, `count=100`, sem `tag`;
+- Remotive: `category=sales`, sem `search`, empresa ou limite.
+
+Cada fonte é consultada exatamente uma vez. Uma falha da Jobicy não interrompe
+a Remotive, e uma falha da Remotive não interrompe a Jobicy. O resultado mantém
+separadamente status, mensagem de falha, recebidas, convertidas, warnings e erros
+de ingestão por fonte. Essas são as métricas source-level.
+
+Depois, todas as vagas convertidas passam uma vez pelo enrichment existente. O
+pipeline aplica a deduplicação global, inclusive entre fontes, e produz uma
+única contagem de oportunidades únicas, decisões e ranking. Essas são as
+métricas globais. Não há merge: a primeira vaga equivalente mantém seus dados e
+sua source, enquanto a duplicata fica registrada. URLs e atribuição da Remotive
+continuam preservadas.
+
+### Demo multi-source
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.discovery_demo
+```
+
+O demo mostra o resumo de cada fonte, tolerância a falhas, contagens globais e
+as 15 primeiras oportunidades do ranking consolidado. Ele faz no máximo uma
+consulta por fonte e não adiciona tags ou searches automáticos.
+
 ## Enriquecimento determinístico
 
 `enrich_job()` recebe uma `JobOpportunity` e cria uma cópia com poucos sinais
@@ -588,6 +630,8 @@ Anos de experiência são tratados apenas como um sinal suave:
 - Lever suporta apenas as bases global e EU documentadas; não há seleção
   automática de região.
 - Não há retries, paginação adicional, descoberta de boards ou consultas em lote.
+- O discovery multi-source usa somente uma consulta padrão por fonte, em ordem
+  sequencial, sem paralelismo ou estratégia multi-query.
 - Booleanos aceitam somente valores reais ou os textos `"true"` e `"false"`.
 - Campos salariais estruturados aceitam somente números simples; textos livres
   da Remotive são preservados separadamente em `salary_text`.
@@ -612,6 +656,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Executar uma única consulta manual de Sales na Remotive e, se o payload revelar
-variações legítimas, representá-las primeiro como fixtures locais antes de
-ampliar qualquer regra.
+Executar uma única demonstração multi-source manual e comparar a cobertura do
+ranking global com os resultados individuais antes de criar múltiplas queries.

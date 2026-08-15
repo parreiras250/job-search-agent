@@ -1,5 +1,12 @@
 """Componentes públicos do Daniel Job Agent."""
 
+from .discovery import (
+    JobicyDiscoveryConfig,
+    MultiSourceDiscovery,
+    MultiSourceDiscoveryResult,
+    RemotiveDiscoveryConfig,
+    SourceDiscoverySummary,
+)
 from .enrichment import enrich_job, enrich_opportunities, extract_years_experience
 from .models import (
     ApplicationStatus,
@@ -78,6 +85,7 @@ __all__ = [
     "IngestionErrorType",
     "IngestionResult",
     "IngestionWarning",
+    "JobicyDiscoveryConfig",
     "JobOpportunity",
     "JobSource",
     "JobicyJobAdapter",
@@ -89,12 +97,16 @@ __all__ = [
     "MatchEvaluation",
     "MockGreenhouseAdapter",
     "MockLeverAdapter",
+    "MultiSourceDiscovery",
+    "MultiSourceDiscoveryResult",
     "PipelineResult",
     "ProcessedOpportunity",
     "RetentionDecision",
+    "RemotiveDiscoveryConfig",
     "RolePriority",
     "ScoreWeights",
     "SourceResult",
+    "SourceDiscoverySummary",
     "SourceStatus",
     "are_probably_duplicates",
     "calculate_match_score",

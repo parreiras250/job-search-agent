@@ -30,3 +30,9 @@ data/*
 *.db
 *.sqlite
 *.sqlite3
+
+# OAuth local do Google (nunca versionar)
+credentials.json
+token.json
+google-credentials*.json
+google-token*.json

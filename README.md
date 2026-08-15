@@ -42,6 +42,8 @@ daniel-job-agent/
 │       ├── discovery_demo.py # Ranking global das fontes amplas
 │       ├── enrichment.py     # Extração determinística de sinais explícitos
 │       ├── greenhouse_demo.py # Consulta manual de um board público
+│       ├── google_sheets.py  # Exportação push-only do CRM para Sheets
+│       ├── google_sheets_cli.py # CLI OAuth para uma spreadsheet existente
 │       ├── ingestion.py      # Adapters e ingestão local em lote
 │       ├── lever_demo.py     # Consulta manual de postings públicos Lever
 │       ├── jobicy_demo.py    # Descoberta manual ampla no Jobicy
@@ -65,6 +67,7 @@ daniel-job-agent/
 │   ├── test_discovery.py
 │   ├── test_enrichment.py
 │   ├── test_greenhouse_source.py
+│   ├── test_google_sheets.py
 │   ├── test_ingestion.py
 │   ├── test_job_opportunity.py
 │   ├── test_lever_source.py
@@ -873,7 +876,92 @@ Em uma integração futura, o agente escreverá somente as colunas automáticas
 definidas em `AUTOMATIC_FIELDS`. O usuário poderá editar somente as colunas de
 `MANUAL_FIELDS`, e apenas essas mudanças poderão voltar ao SQLite. Google Sheets
 será uma interface para o CRM, não o banco principal nem a fonte de verdade.
-Esta etapa não inclui API Google, autenticação, credenciais ou sincronização.
+O retorno de alterações do Sheets para o SQLite permanece fora desta etapa.
+
+## Google Sheets como interface visual — push-only
+
+O Google Sheets pode receber uma cópia visual do CRM, mas o SQLite continua
+sendo a fonte de verdade:
+
+```text
+SQLite CRM
+→ Google Sheets
+```
+
+Esta versão é **somente de saída**. Ela não lê células, não traz edições de volta
+ao SQLite e não resolve conflitos. Cada push limpa e reescreve toda a tab
+configurada com KEEP, REVIEW e REJECT na ordenação padrão do CRM.
+
+**Importante:** até existir sincronização bidirecional segura, não execute um
+novo push depois de editar campos manuais diretamente no Sheets. O push atual
+pode sobrescrever essas edições com os valores que estão no SQLite. Faça
+alterações manuais pelo `crm_cli`, que continua preservando o histórico.
+
+### Dependências e OAuth desktop
+
+A integração usa diretamente as bibliotecas oficiais
+`google-api-python-client`, `google-auth-httplib2` e `google-auth-oauthlib`. Não
+usa `gspread` nem service account. Instale as dependências com:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+O único scope solicitado é:
+
+```text
+https://www.googleapis.com/auth/spreadsheets
+```
+
+Ele permite ler e escrever spreadsheets, sem solicitar Gmail, Calendar ou
+acesso completo ao Google Drive.
+
+Configuração manual no Google Cloud:
+
+1. Crie ou selecione um projeto no Google Cloud Console.
+2. Ative a Google Sheets API.
+3. Configure a tela de consentimento OAuth e adicione sua conta como usuário de
+   teste, se o aplicativo ainda estiver em modo de teste.
+4. Crie um OAuth Client ID do tipo **Desktop app**.
+5. Baixe o JSON do cliente e salve-o localmente como `credentials.json` na raiz
+   do projeto, ou informe outro caminho com `--credentials`.
+6. Crie manualmente uma spreadsheet no Google Sheets.
+7. Copie o spreadsheet ID da URL: é o texto entre `/d/` e `/edit`.
+
+`credentials.json`, `token.json` e padrões equivalentes estão no `.gitignore`.
+Eles nunca devem ser commitados, copiados para `.env.example` nem armazenados no
+SQLite.
+
+No primeiro push, o navegador será aberto para login e autorização. Após o
+consentimento, o token fica no caminho local configurado, com permissão restrita
+ao usuário. Execuções seguintes reutilizam esse token e fazem refresh quando
+necessário. Client secret, access token e refresh token não são impressos.
+
+### Executar o push
+
+Crie a spreadsheet manualmente e execute:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.google_sheets_cli push \
+  --db data/job_agent.db \
+  --spreadsheet-id SHEET_ID \
+  --sheet-name "Job CRM" \
+  --credentials credentials.json \
+  --token token.json
+```
+
+Se a tab não existir, ela é criada na spreadsheet fornecida. A integração não
+cria uma spreadsheet nova. A linha de headers fica congelada e em negrito; a
+região recebe filtro e ajuste de colunas; Notes, Reasons, Gaps e Unknowns usam
+quebra de texto. A URL é enviada como texto puro.
+
+A ordem visual possui 31 colunas: Company, Role, Match Score, Decision,
+Application Status, Next Step, Next Step Date, Notes, Location, Source, Job URL,
+Applied Date, Recruiter Name, Recruiter Email, Date Found, Date Posted, Still
+Open, Positive Reasons, Potential Gaps, Unknowns, Role Family, Seniority, Salary
+Min, Salary Max, Salary Currency, Salary Period, Salary Text, First Seen, Last
+Seen, Last Checked e Internal ID. O ID fica no final e a separação entre colunas
+automáticas e manuais permanece explícita no código.
 
 ## Como funciona o fluxo de decisão
 
@@ -977,7 +1065,9 @@ Anos de experiência são tratados apenas como um sinal suave:
 - O agente só roda quando o comando é iniciado manualmente; ainda não há
   scheduler, notificações ou automação semanal.
 - O CRM é apenas terminal e estrutura tabular; não há interface gráfica nem
-  sincronização com Google Sheets.
+  interface gráfica.
+- A integração Sheets é push-only e reescreve a tab inteira; edições feitas
+  diretamente na planilha ainda não retornam ao SQLite.
 - Role Family e Seniority usam somente uma lista inicial de sinais explícitos do
   título; títulos ambíguos permanecem `OTHER`/`UNKNOWN`.
 - Customer Success e Partnerships são tratados como famílias relevantes pelo
@@ -1007,5 +1097,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Usar o CRM local em uma execução manual e revisar se a ordem das colunas atende
-ao acompanhamento cotidiano antes de projetar a sincronização com Sheets.
+Implementar, em etapa separada, a leitura segura somente das colunas manuais do
+Sheets, com detecção de conflitos antes de qualquer atualização no SQLite.

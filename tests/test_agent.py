@@ -124,6 +124,8 @@ class AgentEndToEndTests(unittest.TestCase):
         self.assertEqual((result.keep, result.review, result.reject), (1, 1, 1))
         self.assertEqual((result.new, result.existing, result.updated), (3, 0, 0))
         self.assertEqual(result.total_stored, 3)
+        self.assertEqual(result.lifecycle.open_seen, 3)
+        self.assertEqual(result.lifecycle.misses_recorded, 0)
 
     def test_second_run_is_existing_and_third_changed_run_is_updated(self) -> None:
         first = self.make_agent().run()
@@ -193,7 +195,7 @@ class AgentEndToEndTests(unittest.TestCase):
         self.make_agent().run()
         stored = self.repository.get(stored_id)
         assert stored is not None
-        self.assertIsNone(stored.opportunity.still_open)
+        self.assertIs(stored.opportunity.still_open, True)
         self.assertEqual(self.repository.count(), 3)
 
     def test_custom_database_path_uses_temporary_file(self) -> None:
@@ -234,7 +236,8 @@ class AgentFailureIsolationTests(unittest.TestCase):
             self.assertEqual(result.sources_failed, ["Jobicy", "Remotive"])
             self.assertEqual((result.jobs_received, result.new, result.total_stored), (0, 0, 1))
             self.assertEqual(after.last_seen_at, before.last_seen_at)
-            self.assertIsNone(after.opportunity.still_open)
+            self.assertIs(after.opportunity.still_open, True)
+            self.assertEqual(result.lifecycle.misses_recorded, 0)
 
 
 class BroadStrategyIntegrationTests(unittest.TestCase):

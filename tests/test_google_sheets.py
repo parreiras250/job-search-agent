@@ -172,7 +172,7 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
 
     def test_visual_contract_has_31_friendly_columns_and_id_last(self) -> None:
         headers = [column.header for column in GOOGLE_SHEET_COLUMNS]
-        self.assertEqual(len(headers), 31)
+        self.assertEqual(len(headers), 33)
         self.assertEqual(headers[:5], [
             "Company", "Role", "Match Score", "Decision", "Application Status"
         ])
@@ -185,6 +185,8 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
         self.assertEqual(set(MANUAL_SHEET_HEADERS) & set(AUTOMATIC_SHEET_HEADERS), set())
         self.assertIn("Notes", MANUAL_SHEET_HEADERS)
         self.assertIn("Match Score", AUTOMATIC_SHEET_HEADERS)
+        self.assertIn("Lifecycle Status", AUTOMATIC_SHEET_HEADERS)
+        self.assertIn("Closed At", AUTOMATIC_SHEET_HEADERS)
 
     def test_record_conversion_handles_none_lists_booleans_and_manual_fields(self) -> None:
         record = next(
@@ -193,14 +195,14 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
         )
         row = record_to_sheet_row(record)
         fields = [column.field for column in GOOGLE_SHEET_COLUMNS]
-        self.assertEqual(row[fields.index("still_open")], "")
+        self.assertIs(row[fields.index("still_open")], True)
         self.assertIsInstance(
             record_to_sheet_row(self.crm.list_records()[0])[fields.index("still_open")],
             bool,
         )
         self.assertEqual(row[-1], record.internal_id)
         self.assertIsInstance(row[fields.index("positive_reasons")], str)
-        self.assertEqual(len(row), 31)
+        self.assertEqual(len(row), 33)
 
     def test_sheet_values_preserve_crm_default_order_and_headers(self) -> None:
         records = self.crm.list_records()
@@ -235,7 +237,7 @@ class GoogleSheetsPushTests(unittest.TestCase):
         self.assertEqual(payload[0][0], "Company")
         self.assertEqual(len(payload), 2)
         self.assertTrue(result.success)
-        self.assertEqual((result.rows_written, result.columns_written), (1, 31))
+        self.assertEqual((result.rows_written, result.columns_written), (1, 33))
         self.assertIsNone(result.error)
 
     def test_existing_tab_is_not_created_again_and_formatting_is_batched(self) -> None:
@@ -265,6 +267,10 @@ class GoogleSheetsPushTests(unittest.TestCase):
             rule for rule in conditional
             if rule["rule"]["ranges"][0]["startColumnIndex"] == 4
         ]
+        lifecycle_rules = [
+            rule for rule in conditional
+            if rule["rule"]["ranges"][0]["startColumnIndex"] == 17
+        ]
         validations = [request["setDataValidation"] for request in requests if "setDataValidation" in request]
         manual_backgrounds = [
             request["repeatCell"] for request in requests
@@ -275,6 +281,7 @@ class GoogleSheetsPushTests(unittest.TestCase):
         self.assertEqual(len(score_rules), 5)
         self.assertEqual(len(decision_rules), 3)
         self.assertEqual(len(status_rules), len(ApplicationStatus))
+        self.assertEqual(len(lifecycle_rules), 4)
         deleted_rules = [
             request["deleteConditionalFormatRule"]
             for request in requests
@@ -437,6 +444,8 @@ class GoogleSheetsPullTests(unittest.TestCase):
         internal_id = int(values[1][-1])
         self.set_cell(values, 1, "Company", "Malicious overwrite")
         self.set_cell(values, 1, "Match Score", 0)
+        self.set_cell(values, 1, "Lifecycle Status", "CLOSED")
+        self.set_cell(values, 1, "Closed At", "2026-08-20T00:00:00+00:00")
         result = self.pull(values)
         record = self.crm.get(internal_id)
         assert record is not None
@@ -444,6 +453,8 @@ class GoogleSheetsPullTests(unittest.TestCase):
         self.assertEqual(result.rows_unchanged, 2)
         self.assertNotEqual(record.company, "Malicious overwrite")
         self.assertNotEqual(record.match_score, 0)
+        self.assertNotEqual(record.lifecycle_status.value, "CLOSED")
+        self.assertIsNone(record.closed_at)
 
     def test_invalid_status_and_date_are_isolated_per_row(self) -> None:
         values = self.values()

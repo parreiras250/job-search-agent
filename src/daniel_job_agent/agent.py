@@ -11,6 +11,7 @@ from .discovery import (
     RemotiveDiscoveryConfig,
 )
 from .models import CandidateProfile
+from .lifecycle import LifecyclePolicy, LifecycleResult, reconcile_lifecycle
 from .pipeline import ProcessedOpportunity
 from .profiles import create_daniel_profile
 from .repository import JobRepository, SyncResult, sync_opportunities
@@ -70,6 +71,7 @@ class AgentRunResult:
     top_new_opportunities: list[ProcessedOpportunity]
     discovery: MultiSourceDiscoveryResult
     persistence: SyncResult
+    lifecycle: LifecycleResult
 
     @property
     def duration_seconds(self) -> float:
@@ -86,11 +88,13 @@ class DanielJobAgent:
         discovery: MultiSourceDiscovery | None = None,
         profile: CandidateProfile | None = None,
         clock: Callable[[], datetime] = _utc_now,
+        lifecycle_policy: LifecyclePolicy = LifecyclePolicy(),
     ) -> None:
         self.repository = repository
         self.discovery = discovery or create_broad_discovery()
         self.profile = profile or create_daniel_profile()
         self.clock = clock
+        self.lifecycle_policy = lifecycle_policy
 
     def run(self) -> AgentRunResult:
         started_at = self.clock()
@@ -99,6 +103,30 @@ class DanielJobAgent:
         persistence_result = sync_opportunities(
             discovery_result.pipeline,
             self.repository,
+            now=persistence_time,
+        )
+        seen_ids = {
+            item.internal_id
+            for item in (
+                persistence_result.new_jobs
+                + persistence_result.existing_jobs
+                + persistence_result.updated_jobs
+            )
+        }
+        lifecycle_sources = {
+            name
+            for name in discovery_result.sources_succeeded
+            if discovery_result.source_summaries[name].errors == 0
+        }
+        # Se parte do lote encontrado não pôde ser persistida, não há confiança
+        # suficiente para declarar outras vagas ausentes nesta rodada.
+        if persistence_result.errors:
+            lifecycle_sources = set()
+        lifecycle_result = reconcile_lifecycle(
+            self.repository,
+            seen_internal_ids=seen_ids,
+            successful_sources=lifecycle_sources,
+            policy=self.lifecycle_policy,
             now=persistence_time,
         )
         finished_at = self.clock()
@@ -141,4 +169,5 @@ class DanielJobAgent:
             top_new_opportunities=top_new,
             discovery=discovery_result,
             persistence=persistence_result,
+            lifecycle=lifecycle_result,
         )

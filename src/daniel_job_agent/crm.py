@@ -5,7 +5,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import TypeAlias
 
-from .models import ApplicationStatus, RoleFamily, Seniority
+from .models import ApplicationStatus, JobLifecycleStatus, RoleFamily, Seniority
 from .repository import JobRepository, StoredOpportunity
 from .rules import RetentionDecision
 
@@ -22,6 +22,13 @@ AUTOMATIC_FIELDS = (
     "role_family",
     "seniority",
     "still_open",
+    "lifecycle_status",
+    "consecutive_misses",
+    "first_missing_at",
+    "last_missing_at",
+    "closed_at",
+    "reopened_at",
+    "last_verified_at",
     "date_found",
     "date_posted",
     "first_seen_at",
@@ -60,6 +67,13 @@ CRM_COLUMNS = (
     "date_found",
     "date_posted",
     "still_open",
+    "lifecycle_status",
+    "consecutive_misses",
+    "first_missing_at",
+    "last_missing_at",
+    "closed_at",
+    "reopened_at",
+    "last_verified_at",
     "application_status",
     "applied_date",
     "recruiter_name",
@@ -106,6 +120,13 @@ class CRMRecord:
     role_family: RoleFamily
     seniority: Seniority
     still_open: bool | None
+    lifecycle_status: JobLifecycleStatus
+    consecutive_misses: int
+    first_missing_at: datetime | None
+    last_missing_at: datetime | None
+    closed_at: datetime | None
+    reopened_at: datetime | None
+    last_verified_at: datetime | None
     date_found: date
     date_posted: date | None
     first_seen_at: datetime
@@ -149,6 +170,13 @@ def _record_from_stored(stored: StoredOpportunity) -> CRMRecord:
         role_family=stored.role_family,
         seniority=stored.seniority,
         still_open=job.still_open,
+        lifecycle_status=job.lifecycle_status,
+        consecutive_misses=job.consecutive_misses,
+        first_missing_at=job.first_missing_at,
+        last_missing_at=job.last_missing_at,
+        closed_at=job.closed_at,
+        reopened_at=job.reopened_at,
+        last_verified_at=job.last_verified_at,
         date_found=job.date_found,
         date_posted=job.date_posted,
         first_seen_at=stored.first_seen_at,
@@ -212,6 +240,7 @@ class LocalCRM:
         application_status: ApplicationStatus | str | None = None,
         retention_decision: RetentionDecision | str | None = None,
         still_open: bool | None = None,
+        lifecycle_status: JobLifecycleStatus | str | None = None,
         source: str | None = None,
         minimum_score: int | None = None,
         order: str = "default",
@@ -234,6 +263,18 @@ class LocalCRM:
             records = [item for item in records if item.retention_decision is decision]
         if still_open is not None:
             records = [item for item in records if item.still_open is still_open]
+        if lifecycle_status is not None:
+            try:
+                status = (
+                    lifecycle_status
+                    if isinstance(lifecycle_status, JobLifecycleStatus)
+                    else JobLifecycleStatus(lifecycle_status.strip().upper())
+                )
+            except (AttributeError, ValueError) as exc:
+                raise CRMValidationError(
+                    f"Invalid lifecycle status: {lifecycle_status}"
+                ) from exc
+            records = [item for item in records if item.lifecycle_status is status]
         if source is not None:
             records = [item for item in records if item.source.casefold() == source.casefold()]
         if minimum_score is not None:

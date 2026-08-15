@@ -5,6 +5,7 @@ from datetime import date
 
 from .crm import CRMRecordNotFound, CRMValidationError, LocalCRM, records_to_table
 from .models import ApplicationStatus
+from .models import JobLifecycleStatus
 from .repository import DEFAULT_DATABASE_PATH, JobRepository
 from .rules import RetentionDecision
 
@@ -27,6 +28,9 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("--source")
     list_parser.add_argument("--minimum-score", type=int)
     list_parser.add_argument("--still-open", choices=("true", "false"))
+    list_parser.add_argument(
+        "--lifecycle", choices=[item.value for item in JobLifecycleStatus]
+    )
     list_parser.add_argument("--order", choices=("default", "newest"), default="default")
 
     update_parser = subparsers.add_parser("update", help="Update manual CRM fields")
@@ -54,6 +58,7 @@ def _print_list(crm: LocalCRM, args: argparse.Namespace) -> None:
         application_status=args.status,
         retention_decision=args.decision,
         still_open=still_open,
+        lifecycle_status=args.lifecycle,
         source=args.source,
         minimum_score=args.minimum_score,
         order=args.order,

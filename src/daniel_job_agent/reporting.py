@@ -83,6 +83,14 @@ def format_agent_run(result: "AgentRunResult") -> str:
             f"Total stored: {result.total_stored}",
             f"Database: {result.database_path}",
             "",
+            "## Lifecycle",
+            f"Seen open: {result.lifecycle.open_seen}",
+            f"Misses recorded: {result.lifecycle.misses_recorded}",
+            f"Possibly closed: {result.lifecycle.possibly_closed}",
+            f"Newly closed: {result.lifecycle.newly_closed}",
+            f"Reopened: {result.lifecycle.reopened}",
+            f"Unchanged lifecycle: {result.lifecycle.unchanged_lifecycle}",
+            "",
             "## Top new opportunities",
         ]
     )

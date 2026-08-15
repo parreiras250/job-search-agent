@@ -45,6 +45,8 @@ GOOGLE_SHEET_COLUMNS = (
     SheetColumn("date_found", "Date Found"),
     SheetColumn("date_posted", "Date Posted"),
     SheetColumn("still_open", "Still Open"),
+    SheetColumn("lifecycle_status", "Lifecycle Status"),
+    SheetColumn("closed_at", "Closed At"),
     SheetColumn("positive_reasons", "Positive Reasons"),
     SheetColumn("potential_gaps", "Potential Gaps"),
     SheetColumn("unknowns", "Unknowns"),
@@ -336,7 +338,7 @@ def ensure_sheet_tab(service: Any, config: GoogleSheetsConfig) -> int:
 def _format_requests(
     sheet_id: int, row_count: int, conditional_rule_count: int = 0
 ) -> list[dict[str, object]]:
-    wrap_columns = (7, 17, 18, 19)  # Notes, reasons, gaps and unknowns (zero-based).
+    wrap_columns = (7, 19, 20, 21)  # Notes, reasons, gaps and unknowns (zero-based).
     requests: list[dict[str, object]] = [
         {
             "deleteConditionalFormatRule": {
@@ -537,6 +539,20 @@ def _format_requests(
                 color,
             )
         )
+    lifecycle_colors = {
+        "OPEN": {"red": 0.88, "green": 0.95, "blue": 0.86},
+        "POSSIBLY_CLOSED": {"red": 1.0, "green": 0.88, "blue": 0.62},
+        "CLOSED": {"red": 0.88, "green": 0.80, "blue": 0.80},
+        "UNKNOWN": {"red": 0.90, "green": 0.90, "blue": 0.90},
+    }
+    for value, color in lifecycle_colors.items():
+        requests.append(
+            conditional_rule(
+                17,
+                {"type": "TEXT_EQ", "values": [{"userEnteredValue": value}]},
+                color,
+            )
+        )
     return requests
 
 
@@ -549,7 +565,7 @@ def read_sheet_values(service: Any, config: GoogleSheetsConfig) -> list[list[obj
         .values()
         .get(
             spreadsheetId=config.spreadsheet_id,
-            range=f"'{escaped_name}'!A:AE",
+            range=f"'{escaped_name}'!A:AG",
             majorDimension="ROWS",
         )
         .execute()

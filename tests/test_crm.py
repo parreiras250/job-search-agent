@@ -155,7 +155,7 @@ class LocalCRMTests(unittest.TestCase):
         self.crm.update_manual_fields(self.ids["keep"], application_status="APPLIED")
         self.assertEqual(len(self.crm.list_records(application_status="APPLIED")), 1)
         self.assertEqual(len(self.crm.list_records(retention_decision="REVIEW")), 1)
-        self.assertEqual(len(self.crm.list_records(still_open=True)), 1)
+        self.assertEqual(len(self.crm.list_records(still_open=True)), 2)
         self.assertEqual(len(self.crm.list_records(still_open=False)), 1)
         self.assertEqual(len(self.crm.list_records(source="other source")), 1)
         self.assertEqual(len(self.crm.list_records(minimum_score=90)), 1)

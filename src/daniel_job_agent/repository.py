@@ -10,7 +10,14 @@ from pathlib import Path
 import sqlite3
 from typing import Iterable
 
-from .models import ApplicationStatus, ApplicationTracking, JobOpportunity, RoleFamily, Seniority
+from .models import (
+    ApplicationStatus,
+    ApplicationTracking,
+    JobLifecycleStatus,
+    JobOpportunity,
+    RoleFamily,
+    Seniority,
+)
 from .pipeline import PipelineResult, ProcessedOpportunity
 from .rules import RetentionDecision, normalize_company, normalize_job_url, normalize_role
 
@@ -81,8 +88,10 @@ _AUTOMATIC_COLUMNS = (
     "salary_max", "salary_currency", "salary_period", "salary_text",
     "job_level", "date_posted", "match_score", "retention_decision",
     "role_family", "seniority", "positive_reasons", "potential_gaps",
-    "unknowns", "still_open",
+    "unknowns",
 )
+
+SCHEMA_VERSION = 2
 
 
 def _utc_now() -> datetime:
@@ -170,6 +179,12 @@ class JobRepository:
                 last_seen_at TEXT NOT NULL,
                 last_checked TEXT NOT NULL,
                 closed_at TEXT,
+                lifecycle_status TEXT NOT NULL DEFAULT 'UNKNOWN',
+                consecutive_misses INTEGER NOT NULL DEFAULT 0,
+                first_missing_at TEXT,
+                last_missing_at TEXT,
+                reopened_at TEXT,
+                last_verified_at TEXT,
                 match_score INTEGER NOT NULL,
                 retention_decision TEXT NOT NULL,
                 role_family TEXT NOT NULL,
@@ -197,7 +212,41 @@ class JobRepository:
         self.connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_opportunity_company_role ON opportunities(company_normalized, role_normalized)"
         )
+        self._migrate_schema()
         self.connection.commit()
+
+    def _migrate_schema(self) -> None:
+        """Adiciona colunas lifecycle sem apagar bancos ou registros existentes."""
+
+        columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(opportunities)")
+        }
+        additions = {
+            "lifecycle_status": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+            "consecutive_misses": "INTEGER NOT NULL DEFAULT 0",
+            "first_missing_at": "TEXT",
+            "last_missing_at": "TEXT",
+            "reopened_at": "TEXT",
+            "last_verified_at": "TEXT",
+        }
+        for name, definition in additions.items():
+            if name not in columns:
+                self.connection.execute(
+                    f"ALTER TABLE opportunities ADD COLUMN {name} {definition}"
+                )
+        self.connection.execute(
+            """UPDATE opportunities
+               SET lifecycle_status = CASE
+                   WHEN still_open = 1 THEN 'OPEN'
+                   WHEN still_open = 0 THEN 'CLOSED'
+                   ELSE lifecycle_status
+               END
+               WHERE lifecycle_status = 'UNKNOWN'"""
+        )
+        current_version = self.connection.execute("PRAGMA user_version").fetchone()[0]
+        if current_version < SCHEMA_VERSION:
+            self.connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def count(self) -> int:
         row = self.connection.execute("SELECT COUNT(*) AS count FROM opportunities").fetchone()
@@ -265,12 +314,18 @@ class JobRepository:
             "positive_reasons": _dump(item.positive_reasons),
             "potential_gaps": _dump(item.potential_gaps),
             "unknowns": _dump(item.unknowns),
-            "still_open": _bool_to_db(job.still_open),
         }
 
     def _insert(self, item: ProcessedOpportunity, now: datetime) -> int:
         job = item.original_job
         automatic = self._automatic_values(item)
+        explicitly_closed = (
+            job.lifecycle_status is JobLifecycleStatus.CLOSED
+            or job.still_open is False
+        )
+        initial_status = (
+            JobLifecycleStatus.CLOSED if explicitly_closed else JobLifecycleStatus.OPEN
+        )
         # Dados manuais não vêm da automação: um registro novo começa com os
         # defaults do CRM e só muda por update_tracking().
         tracking = ApplicationTracking()
@@ -283,7 +338,14 @@ class JobRepository:
             "first_seen_at": now.isoformat(),
             "last_seen_at": now.isoformat(),
             "last_checked": now.isoformat(),
-            "closed_at": None,
+            "closed_at": now.isoformat() if explicitly_closed else None,
+            "lifecycle_status": initial_status.value,
+            "consecutive_misses": 0,
+            "first_missing_at": None,
+            "last_missing_at": None,
+            "reopened_at": None,
+            "last_verified_at": now.isoformat() if explicitly_closed else None,
+            "still_open": 0 if explicitly_closed else 1,
             "application_status": tracking.application_status.value,
             "applied_date": tracking.applied_date.isoformat() if tracking.applied_date else None,
             "recruiter_name": tracking.recruiter_name,
@@ -385,6 +447,77 @@ class JobRepository:
         )
         self.connection.commit()
 
+    def update_lifecycle_seen(
+        self,
+        internal_id: int,
+        *,
+        now: datetime,
+        reopened: bool,
+        explicitly_verified: bool,
+    ) -> None:
+        """Marca uma vaga encontrada sem tocar nos campos manuais do CRM."""
+
+        timestamp = _as_utc(now).isoformat()
+        self.connection.execute(
+            """UPDATE opportunities SET
+               lifecycle_status = ?, consecutive_misses = 0,
+               first_missing_at = NULL, last_missing_at = NULL,
+               closed_at = NULL, still_open = 1,
+               reopened_at = CASE WHEN ? THEN ? ELSE reopened_at END,
+               last_verified_at = CASE WHEN ? THEN ? ELSE last_verified_at END
+               WHERE id = ?""",
+            (
+                JobLifecycleStatus.OPEN.value,
+                int(reopened),
+                timestamp,
+                int(explicitly_verified),
+                timestamp,
+                internal_id,
+            ),
+        )
+        self.connection.commit()
+
+    def update_lifecycle_missing(
+        self,
+        internal_id: int,
+        *,
+        status: JobLifecycleStatus,
+        misses: int,
+        now: datetime,
+        explicitly_verified: bool,
+    ) -> None:
+        """Registra um miss ou fechamento explícito, preservando o CRM manual."""
+
+        timestamp = _as_utc(now).isoformat()
+        still_open = {
+            JobLifecycleStatus.OPEN: 1,
+            JobLifecycleStatus.POSSIBLY_CLOSED: None,
+            JobLifecycleStatus.CLOSED: 0,
+            JobLifecycleStatus.UNKNOWN: None,
+        }[status]
+        self.connection.execute(
+            """UPDATE opportunities SET
+               lifecycle_status = ?, consecutive_misses = ?,
+               first_missing_at = COALESCE(first_missing_at, ?),
+               last_missing_at = ?, still_open = ?,
+               closed_at = CASE WHEN ? = 'CLOSED' THEN COALESCE(closed_at, ?) ELSE closed_at END,
+               last_verified_at = CASE WHEN ? THEN ? ELSE last_verified_at END
+               WHERE id = ?""",
+            (
+                status.value,
+                misses,
+                timestamp,
+                timestamp,
+                still_open,
+                status.value,
+                timestamp,
+                int(explicitly_verified),
+                timestamp,
+                internal_id,
+            ),
+        )
+        self.connection.commit()
+
     def get(self, internal_id: int) -> StoredOpportunity | None:
         row = self.connection.execute(
             "SELECT * FROM opportunities WHERE id = ?", (internal_id,)
@@ -431,6 +564,13 @@ class JobRepository:
             date_posted=date.fromisoformat(row["date_posted"]) if row["date_posted"] else None,
             match_score=row["match_score"], why_match=positive_reasons,
             potential_gaps=potential_gaps, still_open=_bool_from_db(row["still_open"]),
+            lifecycle_status=JobLifecycleStatus(row["lifecycle_status"]),
+            consecutive_misses=int(row["consecutive_misses"]),
+            first_missing_at=datetime.fromisoformat(row["first_missing_at"]) if row["first_missing_at"] else None,
+            last_missing_at=datetime.fromisoformat(row["last_missing_at"]) if row["last_missing_at"] else None,
+            closed_at=datetime.fromisoformat(row["closed_at"]) if row["closed_at"] else None,
+            reopened_at=datetime.fromisoformat(row["reopened_at"]) if row["reopened_at"] else None,
+            last_verified_at=datetime.fromisoformat(row["last_verified_at"]) if row["last_verified_at"] else None,
             last_checked=datetime.fromisoformat(row["last_checked"]), tracking=tracking,
         )
         return StoredOpportunity(

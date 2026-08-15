@@ -52,6 +52,15 @@ class Seniority(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class JobLifecycleStatus(str, Enum):
+    """Estado operacional do anúncio, separado do processo de candidatura."""
+
+    OPEN = "OPEN"
+    POSSIBLY_CLOSED = "POSSIBLY_CLOSED"
+    CLOSED = "CLOSED"
+    UNKNOWN = "UNKNOWN"
+
+
 @dataclass(slots=True)
 class ApplicationTracking:
     """Dados manuais do CRM, separados das informações publicadas da vaga.
@@ -177,6 +186,13 @@ class JobOpportunity:
 
     # Estado da vaga. None significa que ainda não foi possível confirmar.
     still_open: bool | None = None
+    lifecycle_status: JobLifecycleStatus = JobLifecycleStatus.UNKNOWN
+    consecutive_misses: int = 0
+    first_missing_at: datetime | None = None
+    last_missing_at: datetime | None = None
+    closed_at: datetime | None = None
+    reopened_at: datetime | None = None
+    last_verified_at: datetime | None = None
     last_checked: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -219,3 +235,5 @@ class JobOpportunity:
             and self.years_experience_required < 0
         ):
             raise ValueError("years_experience_required cannot be negative")
+        if self.consecutive_misses < 0:
+            raise ValueError("consecutive_misses cannot be negative")

@@ -48,6 +48,8 @@ daniel-job-agent/
 │       ├── lever_demo.py     # Consulta manual de postings públicos Lever
 │       ├── jobicy_demo.py    # Descoberta manual ampla no Jobicy
 │       ├── remotive_demo.py  # Descoberta manual ampla na Remotive
+│       ├── lifecycle.py      # Política conservadora de presença e fechamento
+│       ├── lifecycle_demo.py # Demonstração offline de misses e reabertura
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
 │       ├── multi_query_demo.py # Discovery controlado por múltiplas queries
 │       ├── pipeline.py       # Processamento em lote e ranking
@@ -71,6 +73,7 @@ daniel-job-agent/
 │   ├── test_ingestion.py
 │   ├── test_job_opportunity.py
 │   ├── test_lever_source.py
+│   ├── test_lifecycle.py
 │   ├── test_jobicy_source.py
 │   ├── test_remotive_source.py
 │   ├── test_pipeline.py
@@ -790,8 +793,8 @@ Na primeira execução, vagas ainda desconhecidas são `NEW`. Nas seguintes, vag
 iguais são `EXISTING` e mudanças automáticas relevantes geram `UPDATED`. Todo o
 CRM manual continua preservado. Se uma fonte falhar, a outra ainda é processada;
 se ambas falharem, a execução retorna um resumo vazio e o banco existente não é
-alterado. Uma vaga ausente nunca é marcada automaticamente como fechada, pois a
-fonte pode ter falhado ou retornado apenas parte dos resultados.
+alterado. O lifecycle descrito abaixo só conta ausência para fontes concluídas
+sem falha de consulta, ingestão ou persistência.
 
 ### Apagar o banco somente em desenvolvimento
 
@@ -990,13 +993,71 @@ Fluxo cotidiano recomendado:
 5. Faça `pull`.
 6. O SQLite recebe somente os campos manuais validados.
 
-A ordem visual possui 31 colunas: Company, Role, Match Score, Decision,
+A ordem visual possui 33 colunas: Company, Role, Match Score, Decision,
 Application Status, Next Step, Next Step Date, Notes, Location, Source, Job URL,
 Applied Date, Recruiter Name, Recruiter Email, Date Found, Date Posted, Still
-Open, Positive Reasons, Potential Gaps, Unknowns, Role Family, Seniority, Salary
-Min, Salary Max, Salary Currency, Salary Period, Salary Text, First Seen, Last
-Seen, Last Checked e Internal ID. O ID fica no final e a separação entre colunas
-automáticas e manuais permanece explícita no código.
+Open, Lifecycle Status, Closed At, Positive Reasons, Potential Gaps, Unknowns,
+Role Family, Seniority, Salary Min, Salary Max, Salary Currency, Salary Period,
+Salary Text, First Seen, Last Seen, Last Checked e Internal ID. Lifecycle e
+Closed At são automáticos; o ID fica no final.
+
+## Ciclo de vida das vagas
+
+`ApplicationStatus` descreve a candidatura do Daniel. `JobLifecycleStatus`
+descreve o anúncio e possui `OPEN`, `POSSIBLY_CLOSED`, `CLOSED` e `UNKNOWN`.
+Esses estados são independentes: uma candidatura pode continuar `INTERVIEW`
+mesmo que o anúncio passe a `CLOSED`.
+
+O fluxo real agora é:
+
+```text
+Discovery
+→ Sync found jobs
+→ Source success check
+→ Missing reconciliation
+→ Lifecycle update
+→ SQLite
+→ CRM / Google Sheets
+```
+
+A ausência em uma execução nunca fecha uma vaga. A política padrão é:
+
+- zero misses: `OPEN`;
+- um miss: continua `OPEN` (ou `UNKNOWN` em um registro antigo ainda não visto);
+- dois misses consecutivos: `POSSIBLY_CLOSED`;
+- três misses consecutivos: `CLOSED`.
+
+Os limites ficam em `LifecyclePolicy`, portanto testes ou usos futuros podem
+configurá-los sem números mágicos. Um miss só é contado quando a fonte daquela
+vaga foi executada com sucesso e sem erros de ingestão. Se Jobicy falhar, vagas
+Jobicy não mudam; sucesso com zero resultados pode contar ausência. Remotive
+segue a mesma regra. Greenhouse e Lever não são reconciliadas em uma rodada que
+executou apenas as fontes broad.
+
+Quando uma vaga `POSSIBLY_CLOSED` ou `CLOSED` reaparece, ela volta a `OPEN`,
+zera os misses, preserva `first_seen_at` e o CRM manual e recebe `reopened_at`.
+`still_open` é uma projeção compatível: `OPEN=True`, `CLOSED=False` e
+`POSSIBLY_CLOSED`/`UNKNOWN=None`. `closed_at` é preenchido no fechamento e limpo
+na reabertura, enquanto `reopened_at` preserva a transição mais recente.
+
+A arquitetura também aceita `VerificationStatus` explícito no futuro, mas não
+interpreta 404 como fechamento e não consulta individualmente URLs nesta etapa.
+
+O banco usa `PRAGMA user_version = 2`. Ao abrir um banco anterior, o repository
+consulta `PRAGMA table_info` e executa `ALTER TABLE ADD COLUMN` somente para
+colunas lifecycle ausentes. A migração é idempotente, não usa `DROP TABLE` e
+preserva vagas e CRM existentes. Não é necessário apagar `data/job_agent.db`.
+
+No Google Sheets, `Lifecycle Status` recebe verde sutil para `OPEN`,
+amarelo/laranja para `POSSIBLY_CLOSED`, vermelho/cinza para `CLOSED` e cinza para
+`UNKNOWN`. `Lifecycle Status` e `Closed At` são automáticos e nunca retornam ao
+SQLite pelo pull.
+
+Para ver a sequência completa sem rede e usando banco temporário:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.lifecycle_demo
+```
 
 ## Como funciona o fluxo de decisão
 
@@ -1094,9 +1155,11 @@ Anos de experiência são tratados apenas como um sinal suave:
 - Eficiência e recomendação existem somente em memória e refletem uma execução;
   o histórico SQLite ainda não agrega métricas de queries para concluir que uma
   consulta será sempre inútil.
-- O schema SQLite é inicial e não possui framework de migrations. Mudanças de
-  schema futuras precisarão de uma migração explícita que preserve os dados.
-- Vagas que deixam de aparecer não são marcadas como fechadas automaticamente.
+- Não há framework completo de migrations; existe apenas a migração idempotente
+  e versionada necessária para o schema lifecycle atual.
+- Fechamento por misses é conservador, mas ainda depende da cobertura dos
+  resultados retornados pelas fontes broad.
+- Não há verificação individual de URL nem inferência automática baseada em 404.
 - O agente só roda quando o comando é iniciado manualmente; ainda não há
   scheduler, notificações ou automação semanal.
 - O CRM é apenas terminal e estrutura tabular; não há interface gráfica nem

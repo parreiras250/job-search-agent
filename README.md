@@ -10,6 +10,10 @@ regras para organizar vagas recebidas pelo código. As regras normalizam dados,
 classificam cargos e localização, identificam possíveis duplicatas, calculam um
 Match Score e sugerem se a vaga deve ser mantida, revisada ou rejeitada.
 
+Uma vaga também pode ser comparada a um `CandidateProfile`. O perfil padrão do
+Daniel registra somente informações profissionais relevantes, como experiência,
+cargos desejados, ferramentas, indústrias e preferências de trabalho.
+
 O acompanhamento manual do processo seletivo fica separado dos dados do anúncio.
 Ainda **não** há busca de vagas, scraping, inteligência artificial, conexão com
 Google Sheets, APIs externas ou automação semanal.
@@ -24,8 +28,10 @@ daniel-job-agent/
 │   └── daniel_job_agent/
 │       ├── __init__.py       # Define o pacote Python
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
+│       ├── profiles.py       # Perfil profissional padrão do Daniel
 │       └── rules.py          # Regras locais de classificação e decisão
 ├── tests/
+│   ├── test_candidate_profile.py
 │   ├── test_job_opportunity.py
 │   └── test_rules.py
 ├── .env.example              # Exemplo de configurações e segredos
@@ -121,6 +127,20 @@ job = JobOpportunity(
 print(job.company, job.match_score)
 ```
 
+Uma avaliação completa também explica o resultado:
+
+```python
+from daniel_job_agent import create_daniel_profile, evaluate_match
+
+profile = create_daniel_profile()
+evaluation = evaluate_match(job, profile)
+
+print(evaluation.score)
+print(evaluation.positive_reasons)
+print(evaluation.potential_gaps)
+print(evaluation.unknowns)
+```
+
 Para executar esse exemplo fora da pasta `tests`, ative o ambiente virtual e
 informe ao Python onde está o código-fonte:
 
@@ -146,9 +166,13 @@ Para cada vaga fornecida localmente ao Python:
    agressivamente os nomes.
 2. O cargo recebe prioridade `HIGH`, `MEDIUM` ou `IRRELEVANT`.
 3. A localização recebe elegibilidade `ELIGIBLE`, `NOT_ELIGIBLE` ou `UNKNOWN`.
-4. O Match Score soma pesos documentados para cargo, localização e trabalho
-   remoto. O resultado sempre fica entre 0 e 100.
-5. A decisão final é:
+4. Quando um perfil é fornecido, a vaga também é comparada aos cargos desejados,
+   anos de experiência, ferramentas e indústrias conhecidas.
+5. O Match Score soma pesos documentados para os sinais disponíveis. O resultado
+   sempre fica entre 0 e 100.
+6. A avaliação apresenta razões positivas, possíveis gaps e informações
+   desconhecidas.
+7. A decisão final é:
    - `KEEP`: cargo relevante, localização elegível e bom score;
    - `REVIEW`: faltam informações ou o título ainda não é reconhecido;
    - `REJECT`: cargo explicitamente irrelevante ou localização incompatível.
@@ -161,22 +185,72 @@ Os pesos do score ficam em `ScoreWeights`, portanto podem ser ajustados sem
 alterar o restante do fluxo. As funções de regra apenas leem a vaga: elas não
 mudam o anúncio nem o acompanhamento manual.
 
+## CandidateProfile
+
+`CandidateProfile` é uma representação estruturada das informações profissionais
+usadas na comparação. Ele contém cargos principais e secundários, experiência,
+preferências de mercado e trabalho, ferramentas, indústrias e preferências de
+compensação quando conhecidas.
+
+`create_daniel_profile()` cria o perfil padrão do projeto. Salários permanecem
+desconhecidos porque ainda não existe uma representação completa de moeda e
+período. Nenhuma informação pessoal desnecessária é armazenada.
+
+## Match Score e explicabilidade
+
+`evaluate_match(job, profile)` retorna um `MatchEvaluation` com:
+
+- `score`: número determinístico entre 0 e 100;
+- `positive_reasons`: sinais de boa aderência encontrados;
+- `potential_gaps`: diferenças que merecem atenção, mas não eliminam a vaga;
+- `unknowns`: informações que a vaga ou o perfil não fornecem.
+
+Informação ausente não reduz o score. Por exemplo, uma vaga que não informa as
+ferramentas utilizadas recebe um `unknown`, não uma penalização por ferramentas.
+As explicações são produzidas por regras locais, sem IA.
+
+O uso anterior continua válido: `calculate_match_score(job)` preserva o cálculo
+da etapa anterior. Para comparar com o perfil, use
+`calculate_match_score(job, profile=profile)` ou `evaluate_match(job, profile)`.
+
+## Hard filters e soft signals
+
+Hard filters representam incompatibilidades objetivas. Nesta etapa são poucos:
+localização explicitamente incompatível com Brasil/LATAM e cargo explicitamente
+fora do objetivo comercial. Eles podem resultar em `REJECT`.
+
+Soft signals ajudam a priorizar sem eliminar automaticamente. Cargo secundário,
+anos de experiência, ferramentas, indústria e experiências comerciais
+específicas alteram o score ou aparecem como `potential_gaps`. Um score baixo por
+falta de dados continua sendo motivo para `REVIEW`, não para rejeição automática.
+
+Anos de experiência são tratados apenas como um sinal suave:
+
+- requisito igual ou menor gera aderência normal;
+- diferença de um ou dois anos gera uma pequena redução e um gap explicável;
+- diferenças maiores reduzem mais o score;
+- nenhuma diferença de anos, isoladamente, produz `REJECT`;
+- ausência do requisito gera um `unknown` e nenhuma penalização.
+
 ## Limitações atuais
 
 - A lista de cargos reconhecidos é intencionalmente pequena.
-- A regra de `Account Manager` ainda considera apenas o título; não analisa a
-  descrição para confirmar responsabilidade comercial.
+- Textos livres de descrição, requisitos e responsabilidades são armazenados,
+  mas ainda não são interpretados automaticamente.
+- A regra de `Account Manager` ainda considera apenas o título.
 - A elegibilidade reconhece somente expressões geográficas simples e explícitas.
 - A deduplicação não usa identificadores de plataformas nem similaridade de texto.
-- O Match Score considera somente informações já presentes no modelo e não usa
-  experiência profissional, descrição da vaga ou IA.
+- Ferramentas e indústrias precisam ser fornecidas nos campos estruturados para
+  participarem do score.
+- A avaliação ainda não representa tamanho de contrato, complexidade do ciclo de
+  vendas, senioridade estruturada ou requisitos obrigatórios versus desejáveis.
+- O Match Score não interpreta descrições e não usa IA.
 - `brazil_eligible` foi mantido por compatibilidade, mas a nova regra geográfica
   usa o texto de `location`; a unificação desses dois dados fica para uma etapa
   futura.
 
 ## Próxima pequena etapa sugerida
 
-Adicionar uma descrição opcional da vaga e usá-la somente para refinar casos
-ambíguos, como confirmar se `Account Manager` possui responsabilidade comercial.
-Essa melhoria deve continuar local e acompanhada de novos testes antes de
-qualquer integração externa.
+Adicionar campos booleanos ou enums simples para distinguir requisitos
+obrigatórios de qualificações desejáveis, ainda com entrada manual e local. Isso
+permitirá refinar os gaps sem interpretar texto livre nem integrar fontes externas.

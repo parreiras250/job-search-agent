@@ -38,6 +38,47 @@ class ApplicationTracking:
 
 
 @dataclass(slots=True)
+class CandidateProfile:
+    """Informações profissionais usadas para comparar o candidato com vagas."""
+
+    name: str
+    years_experience: float | None
+    target_roles: list[str] = field(default_factory=list)
+    secondary_roles: list[str] = field(default_factory=list)
+    preferred_markets: list[str] = field(default_factory=list)
+    remote_only: bool = True
+    brazil_based: bool = True
+    contractor_ok: bool = True
+    us_market_experience: bool | None = None
+    b2b_experience: bool | None = None
+    saas_experience: bool | None = None
+    full_cycle_sales: bool | None = None
+    outbound_experience: bool | None = None
+    customer_success_experience: bool | None = None
+    account_management_experience: bool | None = None
+    enterprise_sales_experience: bool | None = None
+    tools: list[str] = field(default_factory=list)
+    industries: list[str] = field(default_factory=list)
+    minimum_base_salary: float | None = None
+    preferred_base_salary: float | None = None
+    preferred_ote: float | None = None
+    preferred_currency: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("name cannot be empty")
+        if self.years_experience is not None and self.years_experience < 0:
+            raise ValueError("years_experience cannot be negative")
+        salary_fields = (
+            self.minimum_base_salary,
+            self.preferred_base_salary,
+            self.preferred_ote,
+        )
+        if any(value is not None and value < 0 for value in salary_fields):
+            raise ValueError("salary preferences cannot be negative")
+
+
+@dataclass(slots=True)
 class JobOpportunity:
     """Representa os dados encontrados em um anúncio de vaga.
 
@@ -58,10 +99,21 @@ class JobOpportunity:
     brazil_eligible: bool
     employment_type: str | None = None
 
+    # Conteúdo estruturado fornecido pela origem da vaga. Nesta etapa nenhum
+    # texto livre é interpretado automaticamente.
+    description: str | None = None
+    requirements: list[str] | None = None
+    responsibilities: list[str] | None = None
+    preferred_qualifications: list[str] | None = None
+    tools_mentioned: list[str] | None = None
+    industries_mentioned: list[str] | None = None
+    years_experience_required: float | None = None
+
     # Remuneração. Float mantém o modelo simples nesta etapa; a moeda será
     # modelada separadamente quando existirem fontes reais de vagas.
     base_salary: float | None = None
     ote: float | None = None  # OTE: ganho total esperado ao atingir a meta.
+    salary_currency: str | None = None
 
     # Datas do anúncio e do acompanhamento interno.
     date_found: date = field(default_factory=date.today)
@@ -107,3 +159,8 @@ class JobOpportunity:
             raise ValueError("base_salary cannot be negative")
         if self.ote is not None and self.ote < 0:
             raise ValueError("ote cannot be negative")
+        if (
+            self.years_experience_required is not None
+            and self.years_experience_required < 0
+        ):
+            raise ValueError("years_experience_required cannot be negative")

@@ -42,8 +42,8 @@ daniel-job-agent/
 │       ├── discovery_demo.py # Ranking global das fontes amplas
 │       ├── enrichment.py     # Extração determinística de sinais explícitos
 │       ├── greenhouse_demo.py # Consulta manual de um board público
-│       ├── google_sheets.py  # Exportação push-only do CRM para Sheets
-│       ├── google_sheets_cli.py # CLI OAuth para uma spreadsheet existente
+│       ├── google_sheets.py  # Push visual e pull manual seguro do Sheets
+│       ├── google_sheets_cli.py # CLI OAuth com push e pull explícitos
 │       ├── ingestion.py      # Adapters e ingestão local em lote
 │       ├── lever_demo.py     # Consulta manual de postings públicos Lever
 │       ├── jobicy_demo.py    # Descoberta manual ampla no Jobicy
@@ -870,32 +870,34 @@ explicações, família, senioridade, remuneração e timestamps do histórico. 
 são exibidas de modo determinístico, separadas por ` | `, e a URL permanece
 texto puro.
 
-### Contrato futuro com Google Sheets
+### Contrato com Google Sheets
 
-Em uma integração futura, o agente escreverá somente as colunas automáticas
-definidas em `AUTOMATIC_FIELDS`. O usuário poderá editar somente as colunas de
-`MANUAL_FIELDS`, e apenas essas mudanças poderão voltar ao SQLite. Google Sheets
-será uma interface para o CRM, não o banco principal nem a fonte de verdade.
-O retorno de alterações do Sheets para o SQLite permanece fora desta etapa.
+O agente escreve as colunas automáticas definidas em `AUTOMATIC_FIELDS`. O
+usuário pode editar as colunas de `MANUAL_FIELDS`, e somente essas mudanças
+podem voltar ao SQLite. Google Sheets é uma interface para o CRM, não o banco
+principal nem a fonte de verdade.
 
-## Google Sheets como interface visual — push-only
+## Google Sheets como interface visual
 
 O Google Sheets pode receber uma cópia visual do CRM, mas o SQLite continua
 sendo a fonte de verdade:
 
 ```text
-SQLite CRM
-→ Google Sheets
+SQLite → push → Google Sheets → edição humana → pull → SQLite
 ```
 
-Esta versão é **somente de saída**. Ela não lê células, não traz edições de volta
-ao SQLite e não resolve conflitos. Cada push limpa e reescreve toda a tab
-configurada com KEEP, REVIEW e REJECT na ordenação padrão do CRM.
+`push` e `pull` são comandos explícitos e independentes. O push reescreve a tab
+com KEEP, REVIEW e REJECT na ordenação padrão, mas antes lê a tab e preserva os
+sete campos manuais pelo `Internal ID`. Assim, uma edição humana ainda não
+importada não é silenciosamente destruída. Se os headers ou IDs existentes não
+forem seguros para essa reconciliação, o push falha antes de limpar a tab.
 
-**Importante:** até existir sincronização bidirecional segura, não execute um
-novo push depois de editar campos manuais diretamente no Sheets. O push atual
-pode sobrescrever essas edições com os valores que estão no SQLite. Faça
-alterações manuais pelo `crm_cli`, que continua preservando o histórico.
+O pull lê os headers, encontra `Internal ID` e as sete colunas manuais pelos
+nomes amigáveis e ignora completamente qualquer alteração em campo automático.
+Headers ausentes ou duplicados abortam todo o pull antes de updates. Depois da
+validação estrutural, um erro em uma linha é registrado sem impedir as demais.
+Célula vazia limpa campos manuais opcionais; `Application Status` não pode ficar
+vazio porque o domínio exige um dos status existentes.
 
 ### Dependências e OAuth desktop
 
@@ -932,7 +934,7 @@ Configuração manual no Google Cloud:
 Eles nunca devem ser commitados, copiados para `.env.example` nem armazenados no
 SQLite.
 
-No primeiro push, o navegador será aberto para login e autorização. Após o
+No primeiro push ou pull, o navegador será aberto para login e autorização. Após o
 consentimento, o token fica no caminho local configurado, com permissão restrita
 ao usuário. Execuções seguintes reutilizam esse token e fazem refresh quando
 necessário. Client secret, access token e refresh token não são impressos.
@@ -954,6 +956,39 @@ Se a tab não existir, ela é criada na spreadsheet fornecida. A integração n�
 cria uma spreadsheet nova. A linha de headers fica congelada e em negrito; a
 região recebe filtro e ajuste de colunas; Notes, Reasons, Gaps e Unknowns usam
 quebra de texto. A URL é enviada como texto puro.
+
+O Match Score recebe cinco faixas visuais: verde forte para 90–100, verde suave
+para 75–89, amarelo para 60–74, laranja para 40–59 e vermelho claro para 0–39.
+Decision usa verde para KEEP, amarelo para REVIEW e vermelho claro para REJECT.
+Application Status possui dropdown com exatamente os valores de
+`ApplicationStatus` e cores distintas para não aplicado, aplicado, etapas em
+andamento, oferta, rejeição e desistência. As sete colunas manuais recebem um
+fundo sutil, sem esconder a formatação condicional do status.
+
+### Executar o pull
+
+Depois de editar status, datas, recrutador, próximo passo ou notas no Sheets:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.google_sheets_cli pull \
+  --db data/job_agent.db \
+  --spreadsheet-id SHEET_ID \
+  --sheet-name "Job CRM" \
+  --credentials credentials.json \
+  --token token.json
+```
+
+O resumo informa linhas lidas, válidas, atualizadas, inalteradas, ignoradas e
+com erro. Nenhum valor de credencial aparece nesse relatório.
+
+Fluxo cotidiano recomendado:
+
+1. Execute discovery e persistência com `run_agent`.
+2. Faça `push` para atualizar os dados automáticos e o visual do CRM.
+3. Revise as vagas no Sheets.
+4. Edite somente status, datas manuais, recrutador, próximo passo e notas.
+5. Faça `pull`.
+6. O SQLite recebe somente os campos manuais validados.
 
 A ordem visual possui 31 colunas: Company, Role, Match Score, Decision,
 Application Status, Next Step, Next Step Date, Notes, Location, Source, Job URL,
@@ -1066,8 +1101,8 @@ Anos de experiência são tratados apenas como um sinal suave:
   scheduler, notificações ou automação semanal.
 - O CRM é apenas terminal e estrutura tabular; não há interface gráfica nem
   interface gráfica.
-- A integração Sheets é push-only e reescreve a tab inteira; edições feitas
-  diretamente na planilha ainda não retornam ao SQLite.
+- Push e pull não são executados automaticamente; conflitos simultâneos entre
+  dois editores humanos ainda não possuem histórico ou resolução avançada.
 - Role Family e Seniority usam somente uma lista inicial de sinais explícitos do
   título; títulos ambíguos permanecem `OTHER`/`UNKNOWN`.
 - Customer Success e Partnerships são tratados como famílias relevantes pelo
@@ -1097,5 +1132,5 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Implementar, em etapa separada, a leitura segura somente das colunas manuais do
-Sheets, com detecção de conflitos antes de qualquer atualização no SQLite.
+Executar primeiro um pull manual controlado e conferir o resumo antes de pensar
+em histórico de sincronizações ou resolução avançada de edição concorrente.

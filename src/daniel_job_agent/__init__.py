@@ -6,6 +6,12 @@ from .models import (
     CandidateProfile,
     JobOpportunity,
 )
+from .pipeline import (
+    DuplicateRecord,
+    PipelineResult,
+    ProcessedOpportunity,
+    process_opportunities,
+)
 from .profiles import create_daniel_profile
 from .rules import (
     GeographicEligibility,
@@ -29,9 +35,12 @@ __all__ = [
     "ApplicationStatus",
     "ApplicationTracking",
     "CandidateProfile",
+    "DuplicateRecord",
     "GeographicEligibility",
     "JobOpportunity",
     "MatchEvaluation",
+    "PipelineResult",
+    "ProcessedOpportunity",
     "RetentionDecision",
     "RolePriority",
     "ScoreWeights",
@@ -46,4 +55,5 @@ __all__ = [
     "normalize_job_url",
     "normalize_location",
     "normalize_role",
+    "process_opportunities",
 ]

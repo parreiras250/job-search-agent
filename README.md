@@ -27,12 +27,16 @@ daniel-job-agent/
 ├── src/
 │   └── daniel_job_agent/
 │       ├── __init__.py       # Define o pacote Python
+│       ├── demo.py           # Demonstração executável no terminal
+│       ├── demo_data.py      # Dataset local com empresas fictícias
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
+│       ├── pipeline.py       # Processamento em lote e ranking
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
 │       └── rules.py          # Regras locais de classificação e decisão
 ├── tests/
 │   ├── test_candidate_profile.py
 │   ├── test_job_opportunity.py
+│   ├── test_pipeline.py
 │   └── test_rules.py
 ├── .env.example              # Exemplo de configurações e segredos
 ├── .gitignore                # Arquivos que o Git deve ignorar
@@ -148,6 +152,64 @@ informe ao Python onde está o código-fonte:
 PYTHONPATH=src python seu_arquivo.py
 ```
 
+## Pipeline local
+
+O pipeline recebe várias `JobOpportunity` e um `CandidateProfile`, aplica as
+mesmas etapas a cada item e devolve um `PipelineResult` estruturado:
+
+```text
+JobOpportunity[]
+→ normalization
+→ deduplication
+→ match evaluation
+→ retention
+→ ranking
+→ processed results
+```
+
+Cada `ProcessedOpportunity` contém a vaga original, uma cópia normalizada usada
+no processamento, score, razões positivas, gaps, unknowns, decisão e posição no
+ranking. A vaga original e seu `ApplicationTracking` não são modificados.
+
+O resultado agregado informa totais recebidos, oportunidades únicas, duplicatas
+e quantidades de `KEEP`, `REVIEW` e `REJECT`. As propriedades `keep`, `review` e
+`reject` permitem inspecionar separadamente cada grupo.
+
+### Deduplicação
+
+O pipeline reutiliza as regras existentes: duas vagas são duplicadas quando têm
+a mesma URL normalizada ou a mesma empresa e cargo normalizados. O primeiro item
+recebido é preservado como principal e a duplicata é registrada em
+`duplicate_records`.
+
+Não existe merge de dados nesta etapa. Portanto, se a duplicata trouxer mais
+detalhes, esses dados não são incorporados automaticamente ao registro principal.
+
+### Ranking
+
+Todas as oportunidades únicas são ordenadas por:
+
+1. Match Score, do maior para o menor;
+2. decisão, na ordem `KEEP`, `REVIEW`, `REJECT`;
+3. empresa, cargo e URL normalizados, para desempate estável.
+
+Vagas `REJECT` continuam armazenadas e aparecem no ranking. Isso mantém o
+processamento auditável: é possível conferir o motivo da rejeição e ajustar as
+regras futuramente sem perder o registro original.
+
+## Demonstração local
+
+O projeto inclui 13 vagas fictícias, sem informações de empresas reais e com uma
+duplicata intencional. Para executar o fluxo completo:
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.demo
+```
+
+A demonstração imprime os totais, as decisões e um ranking curto. No dataset
+atual, são recebidas 13 vagas: 12 únicas, uma duplicata, oito `KEEP`, duas
+`REVIEW` e duas `REJECT`.
+
 ## Acompanhamento manual do CRM
 
 Cada `JobOpportunity` possui um campo `tracking`. Ele guarda o status da
@@ -240,6 +302,8 @@ Anos de experiência são tratados apenas como um sinal suave:
 - A regra de `Account Manager` ainda considera apenas o título.
 - A elegibilidade reconhece somente expressões geográficas simples e explícitas.
 - A deduplicação não usa identificadores de plataformas nem similaridade de texto.
+- Duplicatas não são combinadas; o primeiro registro é mantido como principal.
+- A ordem de entrada define qual duplicata será preservada como principal.
 - Ferramentas e indústrias precisam ser fornecidas nos campos estruturados para
   participarem do score.
 - A avaliação ainda não representa tamanho de contrato, complexidade do ciclo de
@@ -251,6 +315,6 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Adicionar campos booleanos ou enums simples para distinguir requisitos
-obrigatórios de qualificações desejáveis, ainda com entrada manual e local. Isso
-permitirá refinar os gaps sem interpretar texto livre nem integrar fontes externas.
+Adicionar uma política simples e explícita para escolher o melhor registro
+principal entre duplicatas, por exemplo preferindo a vaga com mais campos
+estruturados preenchidos, ainda sem fazer merge automático.

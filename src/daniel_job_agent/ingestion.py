@@ -1,6 +1,7 @@
 """Conversão local de registros brutos em oportunidades padronizadas."""
 
 from dataclasses import dataclass
+from datetime import date, datetime
 from enum import Enum
 from typing import Callable, Iterable, Mapping
 
@@ -133,6 +134,18 @@ def _optional_list(record: RawJobRecord, field_name: str) -> list[str] | None:
     return normalized or None
 
 
+def _optional_date(record: RawJobRecord, field_name: str) -> date | None:
+    value = record.get(field_name)
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be an ISO date or datetime")
+    try:
+        return datetime.fromisoformat(value.strip().replace("Z", "+00:00")).date()
+    except ValueError as error:
+        raise ValueError(f"{field_name} must be an ISO date or datetime") from error
+
+
 class BaseJobAdapter:
     """Adapter pequeno configurado pelos nomes de campos de uma fonte."""
 
@@ -151,6 +164,13 @@ class BaseJobAdapter:
     tools_field = "tools_mentioned"
     industries_field = "industries_mentioned"
     years_field = "years_experience_required"
+    salary_min_field = "salary_min"
+    salary_max_field = "salary_max"
+    salary_period_field = "salary_period"
+    external_id_field = "external_id"
+    job_level_field = "job_level"
+    date_posted_field = "date_posted"
+    report_extended_optional_fields = False
 
     def adapt(self, record: RawJobRecord) -> IngestionResult:
         """Converte um registro sem usar exceção como resultado esperado."""
@@ -190,6 +210,17 @@ class BaseJobAdapter:
             "remote": self.remote_field,
             "brazil_eligible": self.brazil_eligible_field,
         }
+        if self.report_extended_optional_fields:
+            optional_mapping.update(
+                {
+                    "salary_min": self.salary_min_field,
+                    "salary_max": self.salary_max_field,
+                    "salary_period": self.salary_period_field,
+                    "external_id": self.external_id_field,
+                    "job_level": self.job_level_field,
+                    "date_posted": self.date_posted_field,
+                }
+            )
         optional_missing = [
             target
             for target, source in optional_mapping.items()
@@ -255,6 +286,24 @@ class BaseJobAdapter:
                 ),  # type: ignore[arg-type]
                 salary_currency=optional_value(
                     "salary_currency", self.currency_field, _optional_text
+                ),  # type: ignore[arg-type]
+                salary_min=optional_value(
+                    "salary_min", self.salary_min_field, _optional_number
+                ),  # type: ignore[arg-type]
+                salary_max=optional_value(
+                    "salary_max", self.salary_max_field, _optional_number
+                ),  # type: ignore[arg-type]
+                salary_period=optional_value(
+                    "salary_period", self.salary_period_field, _optional_text
+                ),  # type: ignore[arg-type]
+                external_id=optional_value(
+                    "external_id", self.external_id_field, _optional_text
+                ),  # type: ignore[arg-type]
+                job_level=optional_value(
+                    "job_level", self.job_level_field, _optional_text
+                ),  # type: ignore[arg-type]
+                date_posted=optional_value(
+                    "date_posted", self.date_posted_field, _optional_date
                 ),  # type: ignore[arg-type]
             )
         except ValueError as error:
@@ -385,6 +434,52 @@ class LeverJobAdapter(BaseJobAdapter):
             "description": description,
             "employment_type": category_values.get("commitment"),
             "remote": None,
+            "brazil_eligible": None,
+        }
+        return super().adapt(mapped)
+
+
+class JobicyJobAdapter(BaseJobAdapter):
+    """Converte um item da API pública de vagas remotas do Jobicy."""
+
+    source_name = "Jobicy public Remote Jobs API"
+    report_extended_optional_fields = True
+
+    def adapt(self, record: RawJobRecord) -> IngestionResult:
+        def text_or_text_list(field_name: str) -> object:
+            """Normaliza coleções de texto documentadas sem esconder inválidos."""
+
+            value = record.get(field_name)
+            if isinstance(value, (list, tuple)) and all(
+                isinstance(item, str) for item in value
+            ):
+                normalized = [" ".join(item.split()) for item in value if item.strip()]
+                return ", ".join(normalized) or None
+            return value
+
+        industries = record.get("jobIndustry")
+        if isinstance(industries, str):
+            industries = [industries]
+        external_id = record.get("id")
+        if external_id is not None and not isinstance(external_id, str):
+            external_id = str(external_id)
+        mapped: dict[str, object] = {
+            "company": record.get("companyName"),
+            "role": record.get("jobTitle"),
+            "job_url": record.get("url"),
+            "location": record.get("jobGeo"),
+            "employment_type": text_or_text_list("jobType"),
+            "job_level": text_or_text_list("jobLevel"),
+            "description": record.get("jobDescription"),
+            "industries_mentioned": industries,
+            "date_posted": record.get("pubDate"),
+            "salary_min": record.get("salaryMin"),
+            "salary_max": record.get("salaryMax"),
+            "salary_currency": record.get("salaryCurrency"),
+            "salary_period": record.get("salaryPeriod"),
+            "external_id": external_id,
+            # The documented endpoint contains remote jobs by definition.
+            "remote": True,
             "brazil_eligible": None,
         }
         return super().adapt(mapped)

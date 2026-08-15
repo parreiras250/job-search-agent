@@ -159,6 +159,20 @@ _ELIGIBLE_LOCATIONS = (
     "latin america",
     "worldwide remote",
 )
+_JOBICY_ELIGIBLE_LOCATIONS = {
+    "brazil",
+    "latam",
+    "latin america",
+    "anywhere",
+    "worldwide",
+    "americas",
+}
+_JOBICY_NOT_ELIGIBLE_LOCATIONS = {
+    "usa",
+    "united states",
+    "europe",
+    "emea",
+}
 
 
 def evaluate_geographic_eligibility(
@@ -167,6 +181,10 @@ def evaluate_geographic_eligibility(
     """Interpreta sinais explícitos de localização e, opcionalmente, do título."""
 
     normalized = _comparable(location)
+    if normalized in _JOBICY_NOT_ELIGIBLE_LOCATIONS:
+        return GeographicEligibility.NOT_ELIGIBLE
+    if normalized in _JOBICY_ELIGIBLE_LOCATIONS:
+        return GeographicEligibility.ELIGIBLE
     if any(phrase in normalized for phrase in _NOT_ELIGIBLE_LOCATIONS):
         return GeographicEligibility.NOT_ELIGIBLE
     if any(phrase in normalized for phrase in _ELIGIBLE_LOCATIONS):

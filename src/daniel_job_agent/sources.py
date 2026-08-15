@@ -8,6 +8,7 @@ import re
 import socket
 from typing import Mapping, Protocol
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .ingestion import RawJobRecord
@@ -19,6 +20,7 @@ LEVER_API_BASE_URLS = {
 }
 DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
 DEFAULT_USER_AGENT = "DanielJobAgent/1.0 (public-job-board-reader)"
+JOBICY_API_BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
 
 
 class SourceStatus(str, Enum):
@@ -101,6 +103,26 @@ def build_lever_postings_url(company_slug: str, region: str = "global") -> str:
     if normalized_region not in LEVER_API_BASE_URLS:
         raise ValueError("region must be 'global' or 'eu'")
     return f"{LEVER_API_BASE_URLS[normalized_region]}/{normalized_slug}?mode=json"
+
+
+def build_jobicy_jobs_url(
+    *,
+    count: int = 100,
+    geo: str | None = None,
+    industry: str | None = None,
+    tag: str | None = None,
+) -> str:
+    """Monta uma consulta explícita à API pública do Jobicy."""
+
+    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 100:
+        raise ValueError("count must be an integer between 1 and 100")
+    parameters: list[tuple[str, str]] = [("count", str(count))]
+    for name, value in (("geo", geo), ("industry", industry), ("tag", tag)):
+        if value is not None:
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be non-empty text when provided")
+            parameters.append((name, value.strip()))
+    return f"{JOBICY_API_BASE_URL}?{urlencode(parameters)}"
 
 
 def _fetch_json(
@@ -252,6 +274,52 @@ class LeverJobSource(JobSource):
                 message="Lever payload must be a list of postings",
             )
         records = [posting for posting in payload if isinstance(posting, dict)]
+        if not records:
+            return SourceResult(status=SourceStatus.NO_JOBS, records=[])
+        return SourceResult(status=SourceStatus.SUCCESS, records=records)
+
+
+class JobicyJobSource(JobSource):
+    """Faz uma única consulta controlada à API pública do Jobicy."""
+
+    def __init__(
+        self,
+        *,
+        count: int = 100,
+        geo: str | None = None,
+        industry: str | None = None,
+        tag: str | None = None,
+        timeout: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+        transport: HttpTransport | None = None,
+    ) -> None:
+        if timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+        self.url = build_jobicy_jobs_url(
+            count=count, geo=geo, industry=industry, tag=tag
+        )
+        self.count = count
+        self.geo = geo.strip() if isinstance(geo, str) else None
+        self.industry = industry.strip() if isinstance(industry, str) else None
+        self.tag = tag.strip() if isinstance(tag, str) else None
+        self.timeout = timeout
+        self.transport = transport or UrllibHttpTransport()
+
+    def fetch(self) -> SourceResult:
+        payload, error = _fetch_json(
+            source_name="Jobicy",
+            url=self.url,
+            timeout=self.timeout,
+            transport=self.transport,
+        )
+        if error is not None:
+            return error
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+            return SourceResult(
+                status=SourceStatus.INVALID_PAYLOAD,
+                records=[],
+                message="Jobicy payload must contain a jobs list",
+            )
+        records = [job for job in payload["jobs"] if isinstance(job, dict)]
         if not records:
             return SourceResult(status=SourceStatus.NO_JOBS, records=[])
         return SourceResult(status=SourceStatus.SUCCESS, records=records)

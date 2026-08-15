@@ -16,6 +16,7 @@ from .ingestion import (
     IngestionErrorType,
     IngestionResult,
     IngestionWarning,
+    JobicyJobAdapter,
     LeverJobAdapter,
     MockGreenhouseAdapter,
     MockLeverAdapter,
@@ -51,10 +52,12 @@ from .sources import (
     GreenhouseJobSource,
     JobSource,
     LeverJobSource,
+    JobicyJobSource,
     SourceResult,
     SourceStatus,
     build_greenhouse_jobs_url,
     build_lever_postings_url,
+    build_jobicy_jobs_url,
 )
 
 __all__ = [
@@ -74,6 +77,8 @@ __all__ = [
     "IngestionWarning",
     "JobOpportunity",
     "JobSource",
+    "JobicyJobAdapter",
+    "JobicyJobSource",
     "LeverJobAdapter",
     "LeverJobSource",
     "MatchEvaluation",
@@ -90,6 +95,7 @@ __all__ = [
     "calculate_match_score",
     "build_greenhouse_jobs_url",
     "build_lever_postings_url",
+    "build_jobicy_jobs_url",
     "classify_role",
     "combine_ingestion_batches",
     "create_daniel_profile",

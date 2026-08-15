@@ -119,7 +119,14 @@ class JobOpportunity:
     # modelada separadamente quando existirem fontes reais de vagas.
     base_salary: float | None = None
     ote: float | None = None  # OTE: ganho total esperado ao atingir a meta.
+    salary_min: float | None = None
+    salary_max: float | None = None
     salary_currency: str | None = None
+    salary_period: str | None = None
+
+    # Metadados opcionais preservados quando uma fonte os fornece.
+    external_id: str | None = None
+    job_level: str | None = None
 
     # Datas do anúncio e do acompanhamento interno.
     date_found: date = field(default_factory=date.today)
@@ -165,6 +172,10 @@ class JobOpportunity:
             raise ValueError("base_salary cannot be negative")
         if self.ote is not None and self.ote < 0:
             raise ValueError("ote cannot be negative")
+        if self.salary_min is not None and self.salary_min < 0:
+            raise ValueError("salary_min cannot be negative")
+        if self.salary_max is not None and self.salary_max < 0:
+            raise ValueError("salary_max cannot be negative")
         if (
             self.years_experience_required is not None
             and self.years_experience_required < 0

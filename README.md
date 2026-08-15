@@ -15,7 +15,7 @@ Daniel registra somente informações profissionais relevantes, como experiênci
 cargos desejados, ferramentas, indústrias e preferências de trabalho.
 
 O acompanhamento manual do processo seletivo fica separado dos dados do anúncio.
-Greenhouse e Lever podem ser consultados manualmente por seus endpoints públicos.
+Greenhouse, Lever e Jobicy podem ser consultados manualmente por seus endpoints públicos.
 Ainda **não** há descoberta automática de empresas, scraping, inteligência
 artificial, conexão com Google Sheets ou automação semanal.
 
@@ -34,6 +34,7 @@ daniel-job-agent/
 │       ├── greenhouse_demo.py # Consulta manual de um board público
 │       ├── ingestion.py      # Adapters e ingestão local em lote
 │       ├── lever_demo.py     # Consulta manual de postings públicos Lever
+│       ├── jobicy_demo.py    # Descoberta manual ampla no Jobicy
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
 │       ├── pipeline.py       # Processamento em lote e ranking
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
@@ -47,6 +48,7 @@ daniel-job-agent/
 │   ├── test_ingestion.py
 │   ├── test_job_opportunity.py
 │   ├── test_lever_source.py
+│   ├── test_jobicy_source.py
 │   ├── test_pipeline.py
 │   └── test_rules.py
 ├── .env.example              # Exemplo de configurações e segredos
@@ -304,6 +306,55 @@ PYTHONPATH=src python -m daniel_job_agent.lever_demo COMPANY_SLUG "Company Name"
 O comando faz uma única consulta e mostra recebidas, convertidas, warnings,
 erros, únicas, duplicatas, decisões e as dez primeiras oportunidades. Não existe
 descoberta automática de slugs nem consulta de várias empresas.
+
+## Jobicy público
+
+O [Jobicy Remote Jobs API](https://jobicy.com/jobs-rss-feed) acrescenta uma
+fonte de descoberta ampla, sem substituir as consultas por empresa do
+Greenhouse e do Lever.
+
+Os três tipos ficam assim: Greenhouse consulta uma empresa específica, Lever
+consulta uma empresa específica e Jobicy pesquisa um job board amplo com vagas
+de várias empresas. Isso permite iniciar o discovery por mercado e categoria,
+mantendo a mesma avaliação local usada para todas as origens.
+
+```text
+Jobicy public Remote Jobs API
+→ JobicyJobSource
+→ JobicyJobAdapter
+→ deterministic enrichment
+→ pipeline
+→ ranking
+```
+
+A source faz exatamente um GET e aceita os filtros públicos `count` (de 1 a
+100), `geo`, `industry` e `tag`. O adapter preserva ID, título, empresa,
+indústria, tipo, geografia, senioridade, descrição, data e a faixa salarial
+original (`salaryMin`, `salaryMax`, moeda e período), sem converter moeda nem
+anualizar valores. Datas opcionais inválidas geram warning e não eliminam a
+oportunidade.
+
+O endpoint público é `https://jobicy.com/api/v2/remote-jobs`, não exige API key
+e limita cada resposta a no máximo 100 vagas.
+
+### Consulta manual ampla
+
+O comando padrão usa `geo=latam`, `industry=seller`, `count=100` e nenhum tag:
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.jobicy_demo
+```
+
+Os filtros podem ser alterados explicitamente:
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.jobicy_demo --geo americas --industry seller --count 50 --tag "account executive"
+```
+
+A consulta real não faz parte dos testes. Respeite o fair use publicado pelo
+Jobicy: não consulte a API mais de uma vez por hora. Os dados publicados têm
+atraso intencional de seis horas. A integração não agenda consultas, não percorre
+páginas automaticamente e não envia candidaturas.
 
 ## Enriquecimento determinístico
 

@@ -123,6 +123,7 @@ class JobOpportunity:
     salary_max: float | None = None
     salary_currency: str | None = None
     salary_period: str | None = None
+    salary_text: str | None = None
 
     # Metadados opcionais preservados quando uma fonte os fornece.
     external_id: str | None = None

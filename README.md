@@ -15,7 +15,8 @@ Daniel registra somente informações profissionais relevantes, como experiênci
 cargos desejados, ferramentas, indústrias e preferências de trabalho.
 
 O acompanhamento manual do processo seletivo fica separado dos dados do anúncio.
-Greenhouse, Lever e Jobicy podem ser consultados manualmente por seus endpoints públicos.
+Greenhouse, Lever, Jobicy e Remotive podem ser consultados manualmente por seus
+endpoints públicos.
 Ainda **não** há descoberta automática de empresas, scraping, inteligência
 artificial, conexão com Google Sheets ou automação semanal.
 
@@ -35,6 +36,7 @@ daniel-job-agent/
 │       ├── ingestion.py      # Adapters e ingestão local em lote
 │       ├── lever_demo.py     # Consulta manual de postings públicos Lever
 │       ├── jobicy_demo.py    # Descoberta manual ampla no Jobicy
+│       ├── remotive_demo.py  # Descoberta manual ampla na Remotive
 │       ├── models.py         # Vaga e acompanhamento manual do CRM
 │       ├── pipeline.py       # Processamento em lote e ranking
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
@@ -49,6 +51,7 @@ daniel-job-agent/
 │   ├── test_job_opportunity.py
 │   ├── test_lever_source.py
 │   ├── test_jobicy_source.py
+│   ├── test_remotive_source.py
 │   ├── test_pipeline.py
 │   └── test_rules.py
 ├── .env.example              # Exemplo de configurações e segredos
@@ -356,6 +359,51 @@ Jobicy: não consulte a API mais de uma vez por hora. Os dados publicados têm
 atraso intencional de seis horas. A integração não agenda consultas, não percorre
 páginas automaticamente e não envia candidaturas.
 
+## Remotive pública
+
+A Remotive é a segunda fonte ampla do projeto. Greenhouse e Lever consultam uma
+empresa específica; Jobicy e Remotive consultam job boards com vagas de várias
+empresas. A integração usa somente o endpoint público
+`https://remotive.com/api/remote-jobs`, sem API key.
+
+```text
+Remotive Public API
+→ RemotiveJobSource
+→ RemotiveJobAdapter
+→ deterministic enrichment
+→ pipeline
+→ ranking
+```
+
+`RemotiveJobSource` faz exatamente um GET e aceita os filtros `category`,
+`company_name`, `search` e `limit`. Quando fornecido, `limit` precisa ser um
+inteiro positivo; o projeto não inventa um máximo que a documentação não
+especifica. Uma lista `jobs` vazia é um resultado válido com zero vagas.
+
+O adapter preserva ID, URL original da Remotive, título, empresa, categoria,
+tipo, data, restrição geográfica, descrição e o salário livre. O texto salarial
+fica em `salary_text`, sem extração de faixa, conversão de moeda ou anualização.
+Como o endpoint é de vagas remotas, `remote=True`; elegibilidade para o Brasil
+permanece `None` quando a restrição geográfica não a confirma.
+
+### Consulta manual de Sales
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.remotive_demo --category sales
+```
+
+Também é possível limitar ou refinar uma única consulta:
+
+```bash
+PYTHONPATH=src python -m daniel_job_agent.remotive_demo --category sales --search "account executive" --limit 100
+```
+
+A Remotive recomenda baixa frequência, aproximadamente no máximo quatro
+consultas por dia, e as vagas exibidas pela API têm atraso aproximado de 24
+horas. Não há polling, retries agressivos nem múltiplas buscas automáticas.
+Qualquer saída futura deve manter a URL original e identificar `Remotive` como
+fonte, conforme os termos de atribuição. A consulta real não faz parte dos testes.
+
 ## Enriquecimento determinístico
 
 `enrich_job()` recebe uma `JobOpportunity` e cria uma cópia com poucos sinais
@@ -533,16 +581,16 @@ Anos de experiência são tratados apenas como um sinal suave:
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- As fontes reais suportadas são Greenhouse e Lever, sempre com um board/site
-  informado explicitamente.
+- As fontes reais suportadas são Greenhouse e Lever por empresa, além de Jobicy
+  e Remotive para discovery amplo.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as
   respostas de listagem não o fornecem de forma confiável.
 - Lever suporta apenas as bases global e EU documentadas; não há seleção
   automática de região.
 - Não há retries, paginação adicional, descoberta de boards ou consultas em lote.
 - Booleanos aceitam somente valores reais ou os textos `"true"` e `"false"`.
-- Salários aceitam somente números simples; moedas formatadas como `"USD 80k"`
-  geram warning e permanecem como `None`.
+- Campos salariais estruturados aceitam somente números simples; textos livres
+  da Remotive são preservados separadamente em `salary_text`.
 - O parser de descrição reconhece somente a pequena lista de expressões acima;
   variações de linguagem fora desses padrões permanecem desconhecidas.
 - Negação e contexto linguístico complexo não são analisados. Existe apenas uma
@@ -564,6 +612,6 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Próxima pequena etapa sugerida
 
-Executar uma única validação manual em um site Lever escolhido pelo usuário e,
-se o payload revelar variações legítimas, representá-las primeiro como fixtures
-locais antes de ampliar qualquer regra.
+Executar uma única consulta manual de Sales na Remotive e, se o payload revelar
+variações legítimas, representá-las primeiro como fixtures locais antes de
+ampliar qualquer regra.

@@ -21,6 +21,7 @@ LEVER_API_BASE_URLS = {
 DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
 DEFAULT_USER_AGENT = "DanielJobAgent/1.0 (public-job-board-reader)"
 JOBICY_API_BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
+REMOTIVE_API_BASE_URL = "https://remotive.com/api/remote-jobs"
 
 
 class SourceStatus(str, Enum):
@@ -123,6 +124,33 @@ def build_jobicy_jobs_url(
                 raise ValueError(f"{name} must be non-empty text when provided")
             parameters.append((name, value.strip()))
     return f"{JOBICY_API_BASE_URL}?{urlencode(parameters)}"
+
+
+def build_remotive_jobs_url(
+    *,
+    category: str | None = None,
+    company_name: str | None = None,
+    search: str | None = None,
+    limit: int | None = None,
+) -> str:
+    """Monta uma consulta única à API pública da Remotive."""
+
+    parameters: list[tuple[str, str]] = []
+    for name, value in (
+        ("category", category),
+        ("company_name", company_name),
+        ("search", search),
+    ):
+        if value is not None:
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be non-empty text when provided")
+            parameters.append((name, value.strip()))
+    if limit is not None:
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer when provided")
+        parameters.append(("limit", str(limit)))
+    query = urlencode(parameters)
+    return f"{REMOTIVE_API_BASE_URL}?{query}" if query else REMOTIVE_API_BASE_URL
 
 
 def _fetch_json(
@@ -318,6 +346,57 @@ class JobicyJobSource(JobSource):
                 status=SourceStatus.INVALID_PAYLOAD,
                 records=[],
                 message="Jobicy payload must contain a jobs list",
+            )
+        records = [job for job in payload["jobs"] if isinstance(job, dict)]
+        if not records:
+            return SourceResult(status=SourceStatus.NO_JOBS, records=[])
+        return SourceResult(status=SourceStatus.SUCCESS, records=records)
+
+
+class RemotiveJobSource(JobSource):
+    """Faz uma única consulta controlada à API pública da Remotive."""
+
+    def __init__(
+        self,
+        *,
+        category: str | None = None,
+        company_name: str | None = None,
+        search: str | None = None,
+        limit: int | None = None,
+        timeout: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+        transport: HttpTransport | None = None,
+    ) -> None:
+        if timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+        self.url = build_remotive_jobs_url(
+            category=category,
+            company_name=company_name,
+            search=search,
+            limit=limit,
+        )
+        self.category = category.strip() if isinstance(category, str) else None
+        self.company_name = (
+            company_name.strip() if isinstance(company_name, str) else None
+        )
+        self.search = search.strip() if isinstance(search, str) else None
+        self.limit = limit
+        self.timeout = timeout
+        self.transport = transport or UrllibHttpTransport()
+
+    def fetch(self) -> SourceResult:
+        payload, error = _fetch_json(
+            source_name="Remotive",
+            url=self.url,
+            timeout=self.timeout,
+            transport=self.transport,
+        )
+        if error is not None:
+            return error
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+            return SourceResult(
+                status=SourceStatus.INVALID_PAYLOAD,
+                records=[],
+                message="Remotive payload must contain a jobs list",
             )
         records = [job for job in payload["jobs"] if isinstance(job, dict)]
         if not records:

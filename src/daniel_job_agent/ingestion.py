@@ -167,10 +167,12 @@ class BaseJobAdapter:
     salary_min_field = "salary_min"
     salary_max_field = "salary_max"
     salary_period_field = "salary_period"
+    salary_text_field = "salary_text"
     external_id_field = "external_id"
     job_level_field = "job_level"
     date_posted_field = "date_posted"
     report_extended_optional_fields = False
+    report_salary_text_field = False
 
     def adapt(self, record: RawJobRecord) -> IngestionResult:
         """Converte um registro sem usar exceção como resultado esperado."""
@@ -221,6 +223,8 @@ class BaseJobAdapter:
                     "date_posted": self.date_posted_field,
                 }
             )
+        if self.report_salary_text_field:
+            optional_mapping["salary_text"] = self.salary_text_field
         optional_missing = [
             target
             for target, source in optional_mapping.items()
@@ -295,6 +299,9 @@ class BaseJobAdapter:
                 ),  # type: ignore[arg-type]
                 salary_period=optional_value(
                     "salary_period", self.salary_period_field, _optional_text
+                ),  # type: ignore[arg-type]
+                salary_text=optional_value(
+                    "salary_text", self.salary_text_field, _optional_text
                 ),  # type: ignore[arg-type]
                 external_id=optional_value(
                     "external_id", self.external_id_field, _optional_text
@@ -479,6 +486,37 @@ class JobicyJobAdapter(BaseJobAdapter):
             "salary_period": record.get("salaryPeriod"),
             "external_id": external_id,
             # The documented endpoint contains remote jobs by definition.
+            "remote": True,
+            "brazil_eligible": None,
+        }
+        return super().adapt(mapped)
+
+
+class RemotiveJobAdapter(BaseJobAdapter):
+    """Converte uma vaga da API pública da Remotive sem interpretar conteúdo."""
+
+    source_name = "Remotive"
+    report_extended_optional_fields = True
+    report_salary_text_field = True
+
+    def adapt(self, record: RawJobRecord) -> IngestionResult:
+        external_id = record.get("id")
+        if external_id is not None and not isinstance(external_id, str):
+            external_id = str(external_id)
+        category = record.get("category")
+        industries = [category] if isinstance(category, str) else category
+        mapped: dict[str, object] = {
+            "company": record.get("company_name"),
+            "role": record.get("title"),
+            # The original Remotive URL is retained for attribution.
+            "job_url": record.get("url"),
+            "location": record.get("candidate_required_location"),
+            "employment_type": record.get("job_type"),
+            "description": record.get("description"),
+            "industries_mentioned": industries,
+            "date_posted": record.get("publication_date"),
+            "salary_text": record.get("salary"),
+            "external_id": external_id,
             "remote": True,
             "brazil_eligible": None,
         }

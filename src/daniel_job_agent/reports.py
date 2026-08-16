@@ -62,6 +62,8 @@ class WeeklyReport:
     jobs_received: int = 0
     unique_opportunities: int = 0
     duplicates: int = 0
+    opportunities_with_one_source: int = 0
+    opportunities_with_multiple_sources: int = 0
     keep: int = 0
     review: int = 0
     reject: int = 0
@@ -219,12 +221,15 @@ def build_weekly_report(
         ]
 
     lifecycle = agent_result.lifecycle
+    one_source, multiple_sources = repository.observation_overlap_counts()
     return WeeklyReport(
         run_id=history.run_id, started_at=history.started_at,
         finished_at=history.finished_at, status=history.status, sources=sources,
         jobs_received=agent_result.jobs_received,
         unique_opportunities=agent_result.unique_opportunities,
         duplicates=agent_result.discovery_duplicates, keep=agent_result.keep,
+        opportunities_with_one_source=one_source,
+        opportunities_with_multiple_sources=multiple_sources,
         review=agent_result.review, reject=agent_result.reject,
         new=agent_result.new, existing=agent_result.existing,
         updated=agent_result.updated, persistence_errors=agent_result.persistence_errors,
@@ -291,6 +296,7 @@ def format_weekly_report(report: WeeklyReport) -> str:
         f"- Received: {report.jobs_received}",
         f"- Unique opportunities: {report.unique_opportunities}",
         f"- Duplicates: {report.duplicates}",
+        f"- Source overlap: {report.opportunities_with_one_source} observed by 1 source | {report.opportunities_with_multiple_sources} observed by 2+ sources",
         f"- KEEP: {report.keep} | REVIEW: {report.review} | REJECT: {report.reject}",
         "", "## Persistence", "",
         f"- NEW: {report.new} | EXISTING: {report.existing} | UPDATED: {report.updated}",

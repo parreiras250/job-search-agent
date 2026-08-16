@@ -60,6 +60,7 @@ GOOGLE_SHEET_COLUMNS = (
     SheetColumn("first_seen_at", "First Seen"),
     SheetColumn("last_seen_at", "Last Seen"),
     SheetColumn("last_checked", "Last Checked"),
+    SheetColumn("observed_sources", "Observed Sources"),
     SheetColumn("internal_id", "Internal ID"),
 )
 

@@ -63,6 +63,29 @@ participates in the conservative miss policy, but it is not equivalent to a
 future authoritative company ATS. No HTML scraping, pagination, extra category
 feed or provider-specific scoring was introduced.
 
+## Etapa 13D: persistent provenance implemented
+
+SQLite schema version 5 separates the logical opportunity from its persistent
+`source_observations`. Each observation stores stable source identity, type,
+external ID or normalized observed URL, authority, first/last seen and checked
+timestamps, active state and observation-level misses. The existing primary
+source columns remain for compatibility and are not replaced merely because a
+later observational source finds the same job.
+
+Pipeline duplicate records now reach persistence: equivalent Jobicy, Remotive
+and WWR candidates create one opportunity and multiple observations. Migration
+backfills one deterministic observation per existing opportunity with
+`INSERT OR IGNORE`, so reopening the database is idempotent and CRM/manual data
+is untouched.
+
+Lifecycle first updates observations for successful source instances. A source
+failure never counts as absence. Any observation seen in the current run keeps
+the opportunity open; global conservative misses advance only when every known
+observation source completed successfully and none saw the job. A reappearance
+through any source reopens the opportunity. `AUTHORITATIVE` is persisted and
+tested with a fake future tenant, but no direct ATS source or aggressive
+authority policy is enabled yet.
+
 ## Executive conclusion
 
 The current architecture is safe and well tested for Jobicy plus Remotive, but
@@ -353,7 +376,7 @@ iteration and source metrics; add compatibility tests. Do **not** add a source.
 Register the official Sales and Marketing feed as the third operational source,
 with attribution, a one-request budget and observational lifecycle identity.
 
-### 13D — Observation and provenance foundation
+### 13D — Observation and provenance foundation (implemented)
 
 Model explicit source IDs/families and durable observations before using direct
 ATS authority. Migrate safely while preserving current `source` text.

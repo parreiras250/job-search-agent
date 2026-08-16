@@ -139,6 +139,10 @@ class MultiSourceDiscovery:
                     opportunity.source_id = definition.source_id
                     opportunity.source_family = definition.source_family
                     opportunity.source_instance = definition.source_instance
+                    opportunity.source_type = definition.source_type.value
+                    opportunity.lifecycle_authority = (
+                        definition.capabilities.lifecycle_authority.value
+                    )
                 combined_jobs.extend(ingestion.opportunities)
             summary = SourceDiscoverySummary(
                 source=name,

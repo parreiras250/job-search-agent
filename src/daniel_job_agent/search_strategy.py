@@ -373,6 +373,10 @@ class MultiQueryDiscovery:
                     opportunity.source_id = definition.source_id
                     opportunity.source_family = definition.source_family
                     opportunity.source_instance = definition.source_instance
+                    opportunity.source_type = definition.source_type.value
+                    opportunity.lifecycle_authority = (
+                        definition.capabilities.lifecycle_authority.value
+                    )
                 query_jobs = enrich_opportunities(ingestion.opportunities)
                 jobs_with_query.extend(
                     (job, query.key, query.broad) for job in query_jobs

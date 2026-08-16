@@ -133,6 +133,7 @@ class DanielJobAgent:
             seen_internal_ids=seen_ids,
             successful_sources=lifecycle_sources,
             successful_source_identities=lifecycle_source_identities,
+            seen_observation_ids=persistence_result.seen_observation_ids,
             policy=self.lifecycle_policy,
             now=persistence_time,
         )

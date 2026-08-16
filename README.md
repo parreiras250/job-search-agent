@@ -1371,8 +1371,22 @@ ingestion -> pipeline`. Cada vaga carrega `source_id`, `source_family` e
 `source_instance`; discovery, falhas e contribuição funcionam para N definições
 registradas, e lifecycle usa a identidade estruturada exata. Uma nova fonte
 futura deve entrar por uma definição validada e testes offline, sem novos ramos
-no orquestrador. Registry persistente, company registry e provenance com várias
-observações continuam explicitamente fora desta etapa.
+no orquestrador. Registry de configuração persistente e company registry
+continuam fora desta etapa.
+
+Desde a Etapa 13D, uma opportunity lógica pode manter várias
+`source_observations` persistentes. Duplicatas equivalentes de Jobicy, Remotive e
+WWR não criam novas opportunities: elas acrescentam provenance. Misses são
+contados por observação, e o lifecycle global só avança quando todas as sources
+conhecidas daquela vaga foram verificadas com sucesso e nenhuma ainda a viu. O
+CRM e o Google Sheet mostram apenas o resumo automático `Observed Sources`; o
+weekly report mostra overlap compacto entre uma e múltiplas sources.
+
+Demonstração totalmente offline:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.provenance_demo
+```
 
 - A lista de cargos reconhecidos é intencionalmente pequena. Famílias claramente
   técnicas ou não comerciais, como engenharia, produto, jurídico, RH e pesquisa,

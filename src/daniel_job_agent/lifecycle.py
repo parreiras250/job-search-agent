@@ -48,6 +48,7 @@ def reconcile_lifecycle(
     seen_internal_ids: set[int],
     successful_sources: set[str],
     successful_source_identities: set[tuple[str, str]] | None = None,
+    seen_observation_ids: set[int] | None = None,
     policy: LifecyclePolicy = LifecyclePolicy(),
     verifications: Mapping[int, VerificationStatus] | None = None,
     now: datetime | None = None,
@@ -64,8 +65,41 @@ def reconcile_lifecycle(
 
     for stored in repository.list_all():
         job = stored.opportunity
+        observations = repository.get_observations(stored.internal_id)
         verification = verification_map.get(stored.internal_id, VerificationStatus.UNKNOWN)
-        if stored.internal_id in seen_internal_ids or verification is VerificationStatus.OPEN:
+        current_seen_observations = {
+            observation.observation_id
+            for observation in observations
+            if (
+                observation.observation_id in (seen_observation_ids or set())
+                or (
+                    seen_observation_ids is None
+                    and stored.internal_id in seen_internal_ids
+                )
+            )
+        }
+
+        def observation_source_succeeded(observation: object) -> bool:
+            family = getattr(observation, "source_family")
+            instance = getattr(observation, "source_instance")
+            if successful_source_identities is not None:
+                return (family, instance) in successful_source_identities
+            return family.casefold() in successful_legacy_ids
+
+        for observation in observations:
+            if (
+                observation_source_succeeded(observation)
+                and observation.observation_id not in current_seen_observations
+            ):
+                repository.mark_observation_missing(
+                    observation.observation_id, now=timestamp
+                )
+
+        if (
+            stored.internal_id in seen_internal_ids
+            or current_seen_observations
+            or verification is VerificationStatus.OPEN
+        ):
             was_reopened = job.lifecycle_status in {
                 JobLifecycleStatus.POSSIBLY_CLOSED,
                 JobLifecycleStatus.CLOSED,
@@ -99,18 +133,12 @@ def reconcile_lifecycle(
             )
             continue
 
-        identity = (
-            (job.source_family, job.source_instance)
-            if job.source_family and job.source_instance else None
-        )
-        identity_succeeded = (
-            identity in successful_source_identities
-            if successful_source_identities is not None else (
-                job.source_family is not None
-                and job.source_family.casefold() in successful_legacy_ids
-            )
-        )
-        if not identity_succeeded:
+        # Um miss global só é confiável quando todas as observações conhecidas
+        # foram verificadas com sucesso e nenhuma foi vista nesta rodada.
+        if not observations or not all(
+            observation_source_succeeded(observation)
+            for observation in observations
+        ):
             continue
         new_misses = job.consecutive_misses + 1
         if new_misses >= policy.closed_after:

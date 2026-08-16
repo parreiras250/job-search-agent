@@ -179,6 +179,8 @@ class JobOpportunity:
     source_id: str | None = None
     source_family: str | None = None
     source_instance: str | None = None
+    source_type: str | None = None
+    lifecycle_authority: str | None = None
 
     # Datas do anúncio e do acompanhamento interno.
     date_found: date = field(default_factory=date.today)

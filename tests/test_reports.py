@@ -131,6 +131,15 @@ class WeeklyReportModelTests(unittest.TestCase):
         report = simple_report(new=0, best_new=[])
         self.assertIn("No new KEEP or REVIEW opportunities", format_weekly_report(report))
 
+    def test_source_overlap_is_compact(self):
+        report = simple_report(
+            opportunities_with_one_source=7,
+            opportunities_with_multiple_sources=3,
+        )
+        markdown = format_weekly_report(report)
+        self.assertIn("7 observed by 1 source", markdown)
+        self.assertIn("3 observed by 2+ sources", markdown)
+
     def test_best_new_orders_keep_before_review_excludes_reject_and_caps_ten(self):
         jobs = [opportunity(99, "REVIEW", 100), opportunity(98, "REJECT", 100)]
         jobs += [opportunity(index, "KEEP", 90 - index) for index in range(12)]

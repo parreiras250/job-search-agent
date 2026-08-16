@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from enum import Enum
 import json
@@ -75,6 +75,32 @@ class SyncResult:
     existing_jobs: list[SyncedOpportunity]
     updated_jobs: list[SyncedOpportunity]
     error_details: list[SyncError]
+    observations_created: int = 0
+    observations_updated: int = 0
+    cross_source_observations_added: int = 0
+    seen_observation_ids: set[int] = field(default_factory=set)
+
+
+@dataclass(frozen=True, slots=True)
+class SourceObservation:
+    """Evidência persistente de uma opportunity em uma source específica."""
+
+    observation_id: int
+    opportunity_id: int
+    source_id: str
+    source_family: str
+    source_instance: str
+    source_type: str
+    external_id: str | None
+    observed_url: str
+    first_seen_at: datetime
+    last_seen_at: datetime
+    last_checked_at: datetime
+    lifecycle_authority: str
+    active: bool
+    consecutive_misses: int
+    first_missing_at: datetime | None
+    last_missing_at: datetime | None
 
 
 _AUTOMATIC_COLUMNS = (
@@ -92,7 +118,7 @@ _AUTOMATIC_COLUMNS = (
     "unknowns",
 )
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +174,7 @@ class JobRepository:
             Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.database_path)
         self.connection.row_factory = sqlite3.Row
+        self.connection.execute("PRAGMA foreign_keys = ON")
         self._create_schema()
 
     def __enter__(self) -> JobRepository:
@@ -240,6 +267,40 @@ class JobRepository:
         )
         self.connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS source_observations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                opportunity_id INTEGER NOT NULL,
+                observation_key TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                source_family TEXT NOT NULL,
+                source_instance TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                external_id TEXT,
+                observed_url TEXT NOT NULL,
+                observed_url_normalized TEXT NOT NULL,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                last_checked_at TEXT NOT NULL,
+                lifecycle_authority TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                consecutive_misses INTEGER NOT NULL DEFAULT 0,
+                first_missing_at TEXT,
+                last_missing_at TEXT,
+                FOREIGN KEY(opportunity_id) REFERENCES opportunities(id),
+                UNIQUE(opportunity_id, observation_key)
+            )
+            """
+        )
+        self.connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_observation_opportunity "
+            "ON source_observations(opportunity_id)"
+        )
+        self.connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_observation_source_instance "
+            "ON source_observations(source_instance)"
+        )
+        self.connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS agent_runs (
                 run_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 started_at TEXT NOT NULL,
@@ -313,6 +374,47 @@ class JobRepository:
                    ELSE source_instance END
                WHERE source_id IS NULL"""
         )
+        # Cada registro histórico ganha exatamente uma observação inicial. A
+        # chave determinística e UNIQUE tornam a migração idempotente.
+        migrated_columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(opportunities)")
+        }
+        observation_migration_columns = {
+            "id", "source", "source_id", "source_family", "source_instance",
+            "external_id", "job_url", "job_url_normalized", "first_seen_at",
+            "last_seen_at", "last_checked", "lifecycle_status",
+            "consecutive_misses", "first_missing_at", "last_missing_at",
+        }
+        if observation_migration_columns <= migrated_columns:
+            self.connection.execute(
+                """INSERT OR IGNORE INTO source_observations (
+               opportunity_id, observation_key, source_id, source_family,
+               source_instance, source_type, external_id, observed_url,
+               observed_url_normalized, first_seen_at, last_seen_at,
+               last_checked_at, lifecycle_authority, active,
+               consecutive_misses, first_missing_at, last_missing_at
+               )
+               SELECT id,
+                      COALESCE(source_instance, 'legacy:' || id) || '|' ||
+                      CASE WHEN external_id IS NOT NULL AND external_id != ''
+                           THEN 'external:' || external_id
+                           ELSE 'url:' || job_url_normalized END,
+                      COALESCE(source_id, 'legacy-' || id),
+                      COALESCE(source_family, 'legacy'),
+                      COALESCE(source_instance, 'legacy:' || id),
+                      CASE source_id
+                          WHEN 'jobicy' THEN 'GLOBAL_BOARD'
+                          WHEN 'remotive' THEN 'AGGREGATOR'
+                          WHEN 'weworkremotely' THEN 'FEED'
+                          ELSE 'UNKNOWN' END,
+                      external_id, job_url, job_url_normalized,
+                      first_seen_at, last_seen_at, last_checked,
+                      'OBSERVATIONAL',
+                      CASE WHEN lifecycle_status = 'CLOSED' THEN 0 ELSE 1 END,
+                      consecutive_misses, first_missing_at, last_missing_at
+                   FROM opportunities"""
+            )
         current_version = self.connection.execute("PRAGMA user_version").fetchone()[0]
         if current_version < SCHEMA_VERSION:
             self.connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -320,6 +422,130 @@ class JobRepository:
     def count(self) -> int:
         row = self.connection.execute("SELECT COUNT(*) AS count FROM opportunities").fetchone()
         return int(row["count"])
+
+    def observation_count(self) -> int:
+        row = self.connection.execute(
+            "SELECT COUNT(*) AS count FROM source_observations"
+        ).fetchone()
+        return int(row["count"])
+
+    @staticmethod
+    def _observation_from_row(row: sqlite3.Row) -> SourceObservation:
+        return SourceObservation(
+            observation_id=int(row["id"]),
+            opportunity_id=int(row["opportunity_id"]),
+            source_id=row["source_id"],
+            source_family=row["source_family"],
+            source_instance=row["source_instance"],
+            source_type=row["source_type"],
+            external_id=row["external_id"],
+            observed_url=row["observed_url"],
+            first_seen_at=datetime.fromisoformat(row["first_seen_at"]),
+            last_seen_at=datetime.fromisoformat(row["last_seen_at"]),
+            last_checked_at=datetime.fromisoformat(row["last_checked_at"]),
+            lifecycle_authority=row["lifecycle_authority"],
+            active=bool(row["active"]),
+            consecutive_misses=int(row["consecutive_misses"]),
+            first_missing_at=(
+                datetime.fromisoformat(row["first_missing_at"])
+                if row["first_missing_at"] else None
+            ),
+            last_missing_at=(
+                datetime.fromisoformat(row["last_missing_at"])
+                if row["last_missing_at"] else None
+            ),
+        )
+
+    def get_observations(self, opportunity_id: int) -> list[SourceObservation]:
+        rows = self.connection.execute(
+            "SELECT * FROM source_observations WHERE opportunity_id = ? ORDER BY id",
+            (opportunity_id,),
+        ).fetchall()
+        return [self._observation_from_row(row) for row in rows]
+
+    def list_opportunity_sources(self, opportunity_id: int) -> list[str]:
+        return sorted(
+            {item.source_id for item in self.get_observations(opportunity_id)},
+            key=str.casefold,
+        )
+
+    def observation_overlap_counts(self) -> tuple[int, int]:
+        rows = self.connection.execute(
+            """SELECT opportunity_id, COUNT(DISTINCT source_instance) AS count
+               FROM source_observations GROUP BY opportunity_id"""
+        ).fetchall()
+        return (
+            sum(int(row["count"]) == 1 for row in rows),
+            sum(int(row["count"]) >= 2 for row in rows),
+        )
+
+    @staticmethod
+    def _observation_key(job: JobOpportunity) -> str:
+        instance = job.source_instance or f"legacy:{job.source_id or job.source}"
+        if job.external_id:
+            return f"{instance}|external:{job.external_id}"
+        return f"{instance}|url:{normalize_job_url(job.job_url)}"
+
+    def _upsert_observation(
+        self, opportunity_id: int, job: JobOpportunity, now: datetime
+    ) -> tuple[int, bool]:
+        key = self._observation_key(job)
+        existing = self.connection.execute(
+            """SELECT * FROM source_observations
+               WHERE opportunity_id = ? AND observation_key = ?""",
+            (opportunity_id, key),
+        ).fetchone()
+        timestamp = now.isoformat()
+        if existing is not None:
+            self.connection.execute(
+                """UPDATE source_observations SET
+                   observed_url = ?, observed_url_normalized = ?,
+                   last_seen_at = ?, last_checked_at = ?, active = 1,
+                   consecutive_misses = 0, first_missing_at = NULL,
+                   last_missing_at = NULL
+                   WHERE id = ?""",
+                (
+                    job.job_url, normalize_job_url(job.job_url), timestamp,
+                    timestamp, existing["id"],
+                ),
+            )
+            return int(existing["id"]), False
+        cursor = self.connection.execute(
+            """INSERT INTO source_observations (
+               opportunity_id, observation_key, source_id, source_family,
+               source_instance, source_type, external_id, observed_url,
+               observed_url_normalized, first_seen_at, last_seen_at,
+               last_checked_at, lifecycle_authority, active,
+               consecutive_misses
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)""",
+            (
+                opportunity_id, key, job.source_id or "legacy",
+                job.source_family or "legacy",
+                job.source_instance or f"legacy:{job.source_id or job.source}",
+                job.source_type or "UNKNOWN", job.external_id, job.job_url,
+                normalize_job_url(job.job_url), timestamp, timestamp, timestamp,
+                job.lifecycle_authority or "OBSERVATIONAL",
+            ),
+        )
+        return int(cursor.lastrowid), True
+
+    def mark_observation_missing(
+        self, observation_id: int, *, now: datetime
+    ) -> SourceObservation:
+        timestamp = _as_utc(now).isoformat()
+        self.connection.execute(
+            """UPDATE source_observations SET
+               active = 0, consecutive_misses = consecutive_misses + 1,
+               first_missing_at = COALESCE(first_missing_at, ?),
+               last_missing_at = ?, last_checked_at = ?
+               WHERE id = ?""",
+            (timestamp, timestamp, timestamp, observation_id),
+        )
+        row = self.connection.execute(
+            "SELECT * FROM source_observations WHERE id = ?", (observation_id,)
+        ).fetchone()
+        assert row is not None
+        return self._observation_from_row(row)
 
     def record_agent_run(
         self,
@@ -547,7 +773,13 @@ class JobRepository:
             return SyncedOpportunity(internal_id, SyncStatus.NEW, job)
 
         automatic = self._automatic_values(item)
-        changed = any(existing[column] != automatic[column] for column in _AUTOMATIC_COLUMNS)
+        same_primary_source = (
+            not existing["source_instance"]
+            or existing["source_instance"] == job.source_instance
+        )
+        changed = same_primary_source and any(
+            existing[column] != automatic[column] for column in _AUTOMATIC_COLUMNS
+        )
         updates: dict[str, object] = {
             "last_seen_at": now.isoformat(),
             "last_checked": now.isoformat(),
@@ -569,27 +801,81 @@ class JobRepository:
 
     def sync(
         self,
-        opportunities: Iterable[ProcessedOpportunity],
+        opportunities: Iterable[ProcessedOpportunity] | PipelineResult,
         *,
         now: datetime | None = None,
     ) -> SyncResult:
-        items = list(opportunities)
+        pipeline = opportunities if isinstance(opportunities, PipelineResult) else None
+        items = list(
+            pipeline.ranked_opportunities if pipeline is not None else opportunities
+        )
         timestamp = _as_utc(now or _utc_now())
         grouped: dict[SyncStatus, list[SyncedOpportunity]] = {
             status: [] for status in SyncStatus
         }
         errors: list[SyncError] = []
+        observations_created = observations_updated = cross_source_added = 0
+        seen_observation_ids: set[int] = set()
+        primary_ids: dict[int, int] = {}
+        primary_items: dict[int, ProcessedOpportunity] = {}
         for index, item in enumerate(items):
             savepoint = f"opportunity_{index}"
             self.connection.execute(f"SAVEPOINT {savepoint}")
             try:
                 synced = self._sync_one(item, timestamp)
+                previous_observations = self.get_observations(synced.internal_id)
+                observation_id, created = self._upsert_observation(
+                    synced.internal_id, item.original_job, timestamp
+                )
+                seen_observation_ids.add(observation_id)
+                observations_created += int(created)
+                observations_updated += int(not created)
+                if created and previous_observations:
+                    cross_source_added += int(
+                        all(
+                            observation.source_instance
+                            != item.original_job.source_instance
+                            for observation in previous_observations
+                        )
+                    )
+                primary_ids[id(item.original_job)] = synced.internal_id
+                primary_items[id(item.original_job)] = item
                 self.connection.execute(f"RELEASE SAVEPOINT {savepoint}")
                 grouped[synced.status].append(synced)
             except (sqlite3.Error, TypeError, ValueError) as exc:
                 self.connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
                 self.connection.execute(f"RELEASE SAVEPOINT {savepoint}")
                 errors.append(SyncError(item, str(exc)))
+        if pipeline is not None:
+            for index, duplicate in enumerate(pipeline.duplicate_records):
+                opportunity_id = primary_ids.get(id(duplicate.primary))
+                if opportunity_id is None:
+                    continue
+                savepoint = f"observation_{index}"
+                self.connection.execute(f"SAVEPOINT {savepoint}")
+                try:
+                    previous = self.get_observations(opportunity_id)
+                    observation_id, created = self._upsert_observation(
+                        opportunity_id, duplicate.duplicate, timestamp
+                    )
+                    seen_observation_ids.add(observation_id)
+                    observations_created += int(created)
+                    observations_updated += int(not created)
+                    if created and previous:
+                        cross_source_added += int(
+                            all(
+                                item.source_instance
+                                != duplicate.duplicate.source_instance
+                                for item in previous
+                            )
+                        )
+                    self.connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+                except (sqlite3.Error, TypeError, ValueError) as exc:
+                    self.connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                    self.connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+                    primary_item = primary_items.get(id(duplicate.primary))
+                    if primary_item is not None:
+                        errors.append(SyncError(primary_item, str(exc)))
         self.connection.commit()
         return SyncResult(
             received=len(items),
@@ -602,6 +888,10 @@ class JobRepository:
             existing_jobs=grouped[SyncStatus.EXISTING],
             updated_jobs=grouped[SyncStatus.UPDATED],
             error_details=errors,
+            observations_created=observations_created,
+            observations_updated=observations_updated,
+            cross_source_observations_added=cross_source_added,
+            seen_observation_ids=seen_observation_ids,
         )
 
     def update_tracking(self, internal_id: int, tracking: ApplicationTracking) -> None:
@@ -773,5 +1063,4 @@ def sync_opportunities(
 ) -> SyncResult:
     """Sincroniza a saída do pipeline sem executar discovery."""
 
-    items = processed.ranked_opportunities if isinstance(processed, PipelineResult) else processed
-    return repository.sync(items, now=now)
+    return repository.sync(processed, now=now)

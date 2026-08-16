@@ -172,7 +172,7 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
 
     def test_visual_contract_has_31_friendly_columns_and_id_last(self) -> None:
         headers = [column.header for column in GOOGLE_SHEET_COLUMNS]
-        self.assertEqual(len(headers), 33)
+        self.assertEqual(len(headers), 34)
         self.assertEqual(headers[:5], [
             "Company", "Role", "Match Score", "Decision", "Application Status"
         ])
@@ -187,6 +187,7 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
         self.assertIn("Match Score", AUTOMATIC_SHEET_HEADERS)
         self.assertIn("Lifecycle Status", AUTOMATIC_SHEET_HEADERS)
         self.assertIn("Closed At", AUTOMATIC_SHEET_HEADERS)
+        self.assertIn("Observed Sources", AUTOMATIC_SHEET_HEADERS)
 
     def test_record_conversion_handles_none_lists_booleans_and_manual_fields(self) -> None:
         record = next(
@@ -202,7 +203,7 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
         )
         self.assertEqual(row[-1], record.internal_id)
         self.assertIsInstance(row[fields.index("positive_reasons")], str)
-        self.assertEqual(len(row), 33)
+        self.assertEqual(len(row), 34)
 
     def test_sheet_values_preserve_crm_default_order_and_headers(self) -> None:
         records = self.crm.list_records()
@@ -237,7 +238,7 @@ class GoogleSheetsPushTests(unittest.TestCase):
         self.assertEqual(payload[0][0], "Company")
         self.assertEqual(len(payload), 2)
         self.assertTrue(result.success)
-        self.assertEqual((result.rows_written, result.columns_written), (1, 33))
+        self.assertEqual((result.rows_written, result.columns_written), (1, 34))
         self.assertIsNone(result.error)
 
     def test_existing_tab_is_not_created_again_and_formatting_is_batched(self) -> None:
@@ -446,6 +447,8 @@ class GoogleSheetsPullTests(unittest.TestCase):
         self.set_cell(values, 1, "Match Score", 0)
         self.set_cell(values, 1, "Lifecycle Status", "CLOSED")
         self.set_cell(values, 1, "Closed At", "2026-08-20T00:00:00+00:00")
+        original_sources = self.crm.get(internal_id).observed_sources  # type: ignore[union-attr]
+        self.set_cell(values, 1, "Observed Sources", "forged-source")
         result = self.pull(values)
         record = self.crm.get(internal_id)
         assert record is not None
@@ -455,6 +458,7 @@ class GoogleSheetsPullTests(unittest.TestCase):
         self.assertNotEqual(record.match_score, 0)
         self.assertNotEqual(record.lifecycle_status.value, "CLOSED")
         self.assertIsNone(record.closed_at)
+        self.assertEqual(record.observed_sources, original_sources)
 
     def test_invalid_status_and_date_are_isolated_per_row(self) -> None:
         values = self.values()

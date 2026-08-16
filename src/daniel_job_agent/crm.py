@@ -42,6 +42,7 @@ AUTOMATIC_FIELDS = (
     "salary_currency",
     "salary_period",
     "salary_text",
+    "observed_sources",
 )
 
 MANUAL_FIELDS = (
@@ -91,6 +92,7 @@ CRM_COLUMNS = (
     "salary_currency",
     "salary_period",
     "salary_text",
+    "observed_sources",
     "first_seen_at",
     "last_seen_at",
     "last_checked",
@@ -140,6 +142,7 @@ class CRMRecord:
     salary_currency: str | None
     salary_period: str | None
     salary_text: str | None
+    observed_sources: str
     application_status: ApplicationStatus
     applied_date: date | None
     recruiter_name: str | None
@@ -155,7 +158,9 @@ class CRMTable:
     rows: list[list[SimpleValue]]
 
 
-def _record_from_stored(stored: StoredOpportunity) -> CRMRecord:
+def _record_from_stored(
+    stored: StoredOpportunity, observed_sources: list[str]
+) -> CRMRecord:
     job = stored.opportunity
     tracking = job.tracking
     return CRMRecord(
@@ -190,6 +195,7 @@ def _record_from_stored(stored: StoredOpportunity) -> CRMRecord:
         salary_currency=job.salary_currency,
         salary_period=job.salary_period,
         salary_text=job.salary_text,
+        observed_sources=" | ".join(observed_sources),
         application_status=tracking.application_status,
         applied_date=tracking.applied_date,
         recruiter_name=tracking.recruiter_name,
@@ -232,7 +238,12 @@ class LocalCRM:
 
     def get(self, internal_id: int) -> CRMRecord | None:
         stored = self.repository.get(internal_id)
-        return _record_from_stored(stored) if stored else None
+        return (
+            _record_from_stored(
+                stored, self.repository.list_opportunity_sources(internal_id)
+            )
+            if stored else None
+        )
 
     def list_records(
         self,
@@ -245,7 +256,12 @@ class LocalCRM:
         minimum_score: int | None = None,
         order: str = "default",
     ) -> list[CRMRecord]:
-        records = [_record_from_stored(item) for item in self.repository.list_all()]
+        records = [
+            _record_from_stored(
+                item, self.repository.list_opportunity_sources(item.internal_id)
+            )
+            for item in self.repository.list_all()
+        ]
         if application_status is not None:
             status = _parse_status(application_status)
             records = [item for item in records if item.application_status is status]

@@ -1337,6 +1337,20 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ## Limitações atuais
 
+### Source expansion research
+
+A Etapa 13A documenta a auditoria para escalar além de Jobicy e Remotive sem
+alterar o runtime atual:
+
+- [Source research catalog](docs/SOURCE_RESEARCH.md): evidências oficiais,
+  incertezas, restrições e matriz P0/P1/P2/DEFER.
+- [Source architecture plan](docs/SOURCE_ARCHITECTURE_PLAN.md): riscos atuais,
+  registry, capabilities, company tenants, provenance, lifecycle authority,
+  budgets e roadmap proposto.
+
+O próximo passo planejado é 13B (framework genérico usando apenas as fontes
+atuais), ainda não implementado.
+
 - A lista de cargos reconhecidos é intencionalmente pequena. Famílias claramente
   técnicas ou não comerciais, como engenharia, produto, jurídico, RH e pesquisa,
   podem ser rejeitadas por padrões simples no título.

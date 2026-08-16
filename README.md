@@ -1339,8 +1339,9 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ### Source expansion research
 
-A Etapa 13A documenta a auditoria para escalar além de Jobicy e Remotive sem
-alterar o runtime atual:
+A Etapa 13A documentou a auditoria para escalar além de Jobicy e Remotive. A
+Etapa 13B implementa a base genérica, mantendo somente essas duas fontes reais
+habilitadas:
 
 - [Source research catalog](docs/SOURCE_RESEARCH.md): evidências oficiais,
   incertezas, restrições e matriz P0/P1/P2/DEFER.
@@ -1348,8 +1349,13 @@ alterar o runtime atual:
   registry, capabilities, company tenants, provenance, lifecycle authority,
   budgets e roadmap proposto.
 
-O próximo passo planejado é 13B (framework genérico usando apenas as fontes
-atuais), ainda não implementado.
+O fluxo agora é `SourceRegistry -> SourceDefinition -> JobSource + adapter ->
+ingestion -> pipeline`. Cada vaga carrega `source_id`, `source_family` e
+`source_instance`; discovery, falhas e contribuição funcionam para N definições
+registradas, e lifecycle usa a identidade estruturada exata. Uma nova fonte
+futura deve entrar por uma definição validada e testes offline, sem novos ramos
+no orquestrador. Registry persistente, company registry e provenance com várias
+observações continuam explicitamente fora desta etapa.
 
 - A lista de cargos reconhecidos é intencionalmente pequena. Famílias claramente
   técnicas ou não comerciais, como engenharia, produto, jurídico, RH e pesquisa,
@@ -1357,8 +1363,9 @@ atuais), ainda não implementado.
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- As fontes reais suportadas são Greenhouse e Lever por empresa, além de Jobicy
-  e Remotive para discovery amplo.
+- O registry operacional desta etapa contém somente Jobicy e Remotive; os
+  componentes isolados de Greenhouse e Lever não fazem parte do discovery
+  semanal genérico.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as
   respostas de listagem não o fornecem de forma confiável.
 - Lever suporta apenas as bases global e EU documentadas; não há seleção

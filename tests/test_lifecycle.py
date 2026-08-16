@@ -28,6 +28,9 @@ def make_job(identifier: str, **changes: object) -> JobOpportunity:
         "role": "Account Executive",
         "job_url": f"https://example.test/{identifier}",
         "source": "Jobicy public Remote Jobs API",
+        "source_id": "jobicy",
+        "source_family": "jobicy",
+        "source_instance": "jobicy:global",
         "location": "LATAM",
         "remote": True,
         "brazil_eligible": True,
@@ -146,7 +149,13 @@ class LifecycleStateMachineTests(unittest.TestCase):
         )
 
     def test_other_unexecuted_sources_are_never_changed(self) -> None:
-        greenhouse = make_job("G", source="Greenhouse: Example")
+        greenhouse = make_job(
+            "G",
+            source="Greenhouse: Example",
+            source_id="greenhouse-example",
+            source_family="greenhouse",
+            source_instance="greenhouse:example",
+        )
         first = self.sync_jobs([greenhouse], self.start)
         internal_id = first.new_jobs[0].internal_id
         reconcile_lifecycle(
@@ -279,13 +288,13 @@ class LifecycleSchemaMigrationTests(unittest.TestCase):
             self.assertEqual(repository.count(), 1)
             self.assertIn("lifecycle_status", columns)
             self.assertIn("consecutive_misses", columns)
-            self.assertEqual(version, 3)
+            self.assertEqual(version, 4)
             repository.close()
 
             reopened = JobRepository(path)
             self.assertEqual(reopened.count(), 1)
             self.assertEqual(
-                reopened.connection.execute("PRAGMA user_version").fetchone()[0], 3
+                reopened.connection.execute("PRAGMA user_version").fetchone()[0], 4
             )
             reopened.close()
 

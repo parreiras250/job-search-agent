@@ -54,8 +54,8 @@ def main() -> None:
     )
 
     print("\nCoverage")
-    print(f"Unique from Jobicy primary records: {result.unique_jobs_by_source['Jobicy']}")
-    print(f"Unique from Remotive primary records: {result.unique_jobs_by_source['Remotive']}")
+    print(f"Unique from Jobicy primary records: {result.unique_jobs_by_source['jobicy']}")
+    print(f"Unique from Remotive primary records: {result.unique_jobs_by_source['remotive']}")
     print(f"Found by multiple queries: {result.jobs_found_by_multiple_queries}")
     print(f"Broad baseline unique: {result.broad_unique_jobs}")
     print(f"Broad baseline KEEP: {result.broad_keep_count}")

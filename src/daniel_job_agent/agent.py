@@ -118,14 +118,21 @@ class DanielJobAgent:
             for name in discovery_result.sources_succeeded
             if discovery_result.source_summaries[name].errors == 0
         }
+        lifecycle_source_identities = {
+            (summary.source_family, summary.source_instance)
+            for summary in discovery_result.source_executions_by_id.values()
+            if summary.succeeded and summary.errors == 0
+        }
         # Se parte do lote encontrado não pôde ser persistida, não há confiança
         # suficiente para declarar outras vagas ausentes nesta rodada.
         if persistence_result.errors:
             lifecycle_sources = set()
+            lifecycle_source_identities = set()
         lifecycle_result = reconcile_lifecycle(
             self.repository,
             seen_internal_ids=seen_ids,
             successful_sources=lifecycle_sources,
+            successful_source_identities=lifecycle_source_identities,
             policy=self.lifecycle_policy,
             now=persistence_time,
         )

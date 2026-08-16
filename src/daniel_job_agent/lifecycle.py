@@ -42,24 +42,12 @@ class LifecycleResult:
     reopened_ids: list[int] = field(default_factory=list)
 
 
-def _source_family(source: str) -> str | None:
-    normalized = source.casefold()
-    if "jobicy" in normalized:
-        return "Jobicy"
-    if "remotive" in normalized:
-        return "Remotive"
-    if "greenhouse" in normalized:
-        return "Greenhouse"
-    if "lever" in normalized:
-        return "Lever"
-    return None
-
-
 def reconcile_lifecycle(
     repository: JobRepository,
     *,
     seen_internal_ids: set[int],
     successful_sources: set[str],
+    successful_source_identities: set[tuple[str, str]] | None = None,
     policy: LifecyclePolicy = LifecyclePolicy(),
     verifications: Mapping[int, VerificationStatus] | None = None,
     now: datetime | None = None,
@@ -68,6 +56,7 @@ def reconcile_lifecycle(
 
     timestamp = now or datetime.now(timezone.utc)
     verification_map = verifications or {}
+    successful_legacy_ids = {value.casefold() for value in successful_sources}
     open_seen = misses = possible = closed = reopened = unchanged = 0
     possible_ids: list[int] = []
     closed_ids: list[int] = []
@@ -110,8 +99,18 @@ def reconcile_lifecycle(
             )
             continue
 
-        family = _source_family(job.source)
-        if family not in successful_sources:
+        identity = (
+            (job.source_family, job.source_instance)
+            if job.source_family and job.source_instance else None
+        )
+        identity_succeeded = (
+            identity in successful_source_identities
+            if successful_source_identities is not None else (
+                job.source_family is not None
+                and job.source_family.casefold() in successful_legacy_ids
+            )
+        )
+        if not identity_succeeded:
             continue
         new_misses = job.consecutive_misses + 1
         if new_misses >= policy.closed_after:

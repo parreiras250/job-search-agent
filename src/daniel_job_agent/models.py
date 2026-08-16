@@ -174,6 +174,11 @@ class JobOpportunity:
     # Metadados opcionais preservados quando uma fonte os fornece.
     external_id: str | None = None
     job_level: str | None = None
+    # Identidade operacional estruturada; ``source`` continua sendo o rótulo
+    # humano/original para compatibilidade e atribuição.
+    source_id: str | None = None
+    source_family: str | None = None
+    source_instance: str | None = None
 
     # Datas do anúncio e do acompanhamento interno.
     date_found: date = field(default_factory=date.today)

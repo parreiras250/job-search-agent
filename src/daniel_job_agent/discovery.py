@@ -1,22 +1,13 @@
-"""Discovery amplo combinando uma consulta Jobicy e uma Remotive."""
+"""Discovery genérico sobre as fontes habilitadas em um SourceRegistry."""
 
 from dataclasses import dataclass
 
 from .enrichment import enrich_opportunities
-from .ingestion import (
-    BatchIngestionResult,
-    JobicyJobAdapter,
-    RemotiveJobAdapter,
-    ingest_batch,
-)
+from .ingestion import BatchIngestionResult, ingest_batch
 from .pipeline import PipelineResult, ProcessedOpportunity, process_opportunities
 from .models import CandidateProfile
-from .sources import (
-    JobSource,
-    JobicyJobSource,
-    RemotiveJobSource,
-    SourceResult,
-)
+from .source_registry import SourceRegistry, create_default_source_registry
+from .sources import JobSource, SourceResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +42,9 @@ class SourceDiscoverySummary:
     warnings: int
     errors: int
     failure_message: str | None
+    source_id: str = ""
+    source_family: str = ""
+    source_instance: str = ""
 
     @property
     def succeeded(self) -> bool:
@@ -79,10 +73,11 @@ class MultiSourceDiscoveryResult:
     reject_count: int
     ranking: list[ProcessedOpportunity]
     pipeline: PipelineResult
+    source_executions_by_id: dict[str, SourceDiscoverySummary]
 
 
 class MultiSourceDiscovery:
-    """Executa uma Jobicy e uma Remotive, com falhas isoladas por fonte."""
+    """Executa N definições habilitadas, com falhas isoladas por source_id."""
 
     def __init__(
         self,
@@ -91,33 +86,45 @@ class MultiSourceDiscovery:
         remotive_config: RemotiveDiscoveryConfig | None = None,
         jobicy_source: JobSource | None = None,
         remotive_source: JobSource | None = None,
+        registry: SourceRegistry | None = None,
     ) -> None:
         self.jobicy_config = jobicy_config or JobicyDiscoveryConfig()
         self.remotive_config = remotive_config or RemotiveDiscoveryConfig()
-        self.jobicy_source = jobicy_source or JobicyJobSource(
-            geo=self.jobicy_config.geo,
-            industry=self.jobicy_config.industry,
-            count=self.jobicy_config.count,
-            tag=self.jobicy_config.tag,
+        self.registry = registry or create_default_source_registry(
+            jobicy_config={
+                "geo": self.jobicy_config.geo,
+                "industry": self.jobicy_config.industry,
+                "count": self.jobicy_config.count,
+                "tag": self.jobicy_config.tag,
+            },
+            remotive_config={
+                "category": self.remotive_config.category,
+                "company_name": self.remotive_config.company_name,
+                "search": self.remotive_config.search,
+                "limit": self.remotive_config.limit,
+            },
+            jobicy_source=jobicy_source,
+            remotive_source=remotive_source,
         )
-        self.remotive_source = remotive_source or RemotiveJobSource(
-            category=self.remotive_config.category,
-            company_name=self.remotive_config.company_name,
-            search=self.remotive_config.search,
-            limit=self.remotive_config.limit,
-        )
+        # Compatibilidade de inspeção para código/testes anteriores.
+        self._source_instances = {
+            definition.source_id: definition.source_factory()
+            for definition in self.registry.enabled_sources()
+        }
+        self.jobicy_source = self._source_instances.get("jobicy")
+        self.remotive_source = self._source_instances.get("remotive")
 
     def run(self, profile: CandidateProfile) -> MultiSourceDiscoveryResult:
-        """Consulta as duas fontes e processa juntas somente as vagas válidas."""
+        """Consulta N fontes habilitadas e processa juntas somente vagas válidas."""
 
-        definitions = (
-            ("Jobicy", self.jobicy_source, JobicyJobAdapter()),
-            ("Remotive", self.remotive_source, RemotiveJobAdapter()),
-        )
         summaries: dict[str, SourceDiscoverySummary] = {}
+        executions_by_id: dict[str, SourceDiscoverySummary] = {}
         combined_jobs = []
 
-        for name, source, adapter in definitions:
+        for definition in self.registry.enabled_sources():
+            name = definition.display_name
+            source = self._source_instances[definition.source_id]
+            adapter = definition.adapter_factory()
             source_result = source.fetch()
             ingestion = (
                 ingest_batch(source_result.records, adapter)
@@ -125,8 +132,12 @@ class MultiSourceDiscovery:
                 else None
             )
             if ingestion is not None:
+                for opportunity in ingestion.opportunities:
+                    opportunity.source_id = definition.source_id
+                    opportunity.source_family = definition.source_family
+                    opportunity.source_instance = definition.source_instance
                 combined_jobs.extend(ingestion.opportunities)
-            summaries[name] = SourceDiscoverySummary(
+            summary = SourceDiscoverySummary(
                 source=name,
                 source_result=source_result,
                 ingestion=ingestion,
@@ -135,7 +146,12 @@ class MultiSourceDiscovery:
                 warnings=ingestion.warning_count if ingestion else 0,
                 errors=ingestion.error_count if ingestion else 0,
                 failure_message=(None if source_result.success else source_result.message),
+                source_id=definition.source_id,
+                source_family=definition.source_family,
+                source_instance=definition.source_instance,
             )
+            summaries[name] = summary
+            executions_by_id[definition.source_id] = summary
 
         enriched_jobs = enrich_opportunities(combined_jobs)
         pipeline = process_opportunities(enriched_jobs, profile)
@@ -143,7 +159,11 @@ class MultiSourceDiscovery:
         succeeded = [name for name, item in summaries.items() if item.succeeded]
         failed = [name for name, item in summaries.items() if not item.succeeded]
         cross_source_duplicates = sum(
-            record.duplicate.source != record.primary.source
+            (
+                record.duplicate.source_instance or record.duplicate.source
+            ) != (
+                record.primary.source_instance or record.primary.source
+            )
             for record in pipeline.duplicate_records
         )
         return MultiSourceDiscoveryResult(
@@ -175,4 +195,5 @@ class MultiSourceDiscovery:
             reject_count=pipeline.reject_count,
             ranking=pipeline.ranked_opportunities,
             pipeline=pipeline,
+            source_executions_by_id=executions_by_id,
         )

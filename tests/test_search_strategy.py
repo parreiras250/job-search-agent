@@ -165,7 +165,7 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
             {"broad_sales": success([remotive_record(1)])},
         )
         self.assertEqual(result.unique_jobs, 1)
-        self.assertEqual(result.unique_jobs_by_source, {"Jobicy": 0, "Remotive": 1})
+        self.assertEqual(result.unique_jobs_by_source, {"jobicy": 0, "remotive": 1})
 
     def test_intra_and_cross_source_dedup_preserve_provenance(self):
         strategy = create_full_search_strategy(jobicy_limit=2, remotive_limit=1)

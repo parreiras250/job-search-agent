@@ -86,12 +86,13 @@ _AUTOMATIC_COLUMNS = (
     "inbound_sales_mentioned", "b2b_experience_required",
     "saas_experience_required", "base_salary", "ote", "salary_min",
     "salary_max", "salary_currency", "salary_period", "salary_text",
-    "job_level", "date_posted", "match_score", "retention_decision",
+    "job_level", "source_id", "source_family", "source_instance",
+    "date_posted", "match_score", "retention_decision",
     "role_family", "seniority", "positive_reasons", "potential_gaps",
     "unknowns",
 )
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +196,9 @@ class JobRepository:
                 salary_period TEXT,
                 salary_text TEXT,
                 job_level TEXT,
+                source_id TEXT,
+                source_family TEXT,
+                source_instance TEXT,
                 date_found TEXT NOT NULL,
                 date_posted TEXT,
                 first_seen_at TEXT NOT NULL,
@@ -273,6 +277,9 @@ class JobRepository:
             "last_missing_at": "TEXT",
             "reopened_at": "TEXT",
             "last_verified_at": "TEXT",
+            "source_id": "TEXT",
+            "source_family": "TEXT",
+            "source_instance": "TEXT",
         }
         for name, definition in additions.items():
             if name not in columns:
@@ -287,6 +294,24 @@ class JobRepository:
                    ELSE lifecycle_status
                END
                WHERE lifecycle_status = 'UNKNOWN'"""
+        )
+        # Migração explícita dos rótulos históricos conhecidos. A lógica de
+        # lifecycle não interpreta mais substrings de texto.
+        self.connection.execute(
+            """UPDATE opportunities SET
+               source_id = CASE source
+                   WHEN 'Jobicy public Remote Jobs API' THEN 'jobicy'
+                   WHEN 'Remotive' THEN 'remotive'
+                   ELSE source_id END,
+               source_family = CASE source
+                   WHEN 'Jobicy public Remote Jobs API' THEN 'jobicy'
+                   WHEN 'Remotive' THEN 'remotive'
+                   ELSE source_family END,
+               source_instance = CASE source
+                   WHEN 'Jobicy public Remote Jobs API' THEN 'jobicy:global'
+                   WHEN 'Remotive' THEN 'remotive:global'
+                   ELSE source_instance END
+               WHERE source_id IS NULL"""
         )
         current_version = self.connection.execute("PRAGMA user_version").fetchone()[0]
         if current_version < SCHEMA_VERSION:
@@ -456,6 +481,9 @@ class JobRepository:
             "salary_period": job.salary_period,
             "salary_text": job.salary_text,
             "job_level": job.job_level,
+            "source_id": job.source_id,
+            "source_family": job.source_family,
+            "source_instance": job.source_instance,
             "date_posted": job.date_posted.isoformat() if job.date_posted else None,
             "match_score": item.match_score,
             "retention_decision": item.retention_decision.value,
@@ -710,6 +738,8 @@ class JobRepository:
             salary_max=row["salary_max"], salary_currency=row["salary_currency"],
             salary_period=row["salary_period"], salary_text=row["salary_text"],
             external_id=row["external_id"], job_level=row["job_level"],
+            source_id=row["source_id"], source_family=row["source_family"],
+            source_instance=row["source_instance"],
             date_found=date.fromisoformat(row["date_found"]),
             date_posted=date.fromisoformat(row["date_posted"]) if row["date_posted"] else None,
             match_score=row["match_score"], why_match=positive_reasons,

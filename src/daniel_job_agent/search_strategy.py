@@ -2,19 +2,52 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Mapping
 
 from .enrichment import enrich_opportunities
 from .ingestion import (
     BatchIngestionResult,
-    JobicyJobAdapter,
-    RemotiveJobAdapter,
     ingest_batch,
 )
 from .models import CandidateProfile, JobOpportunity
 from .pipeline import PipelineResult, ProcessedOpportunity, process_opportunities
 from .sources import JobSource, JobicyJobSource, RemotiveJobSource, SourceResult
+from .source_registry import SourceRegistry, create_default_source_registry
 
 MAX_QUERIES_PER_SOURCE = 4
+
+
+@dataclass(frozen=True, slots=True)
+class SourceQuery:
+    """Query genérica, validada e associada a um source_id estável."""
+
+    source_id: str
+    query_id: str
+    parameters: Mapping[str, object]
+    broad: bool
+    priority: int = 100
+
+    def __post_init__(self) -> None:
+        if not self.source_id or self.source_id != self.source_id.strip().casefold():
+            raise ValueError("source_id must be a lowercase stable identifier")
+        if not self.query_id.strip():
+            raise ValueError("query_id cannot be empty")
+        if self.priority < 0:
+            raise ValueError("priority cannot be negative")
+        if any(not isinstance(key, str) or not key for key in self.parameters):
+            raise ValueError("query parameter names must be non-empty strings")
+        object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
+
+    @property
+    def key(self) -> str:
+        return f"{self.source_id}:{self.query_id}"
+
+    @property
+    def name(self) -> str:
+        """Alias legível mantido pelo contrato comum das queries."""
+
+        return self.query_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +63,21 @@ class JobicySearchQuery:
     def key(self) -> str:
         return f"jobicy:{self.name}"
 
+    @property
+    def source_id(self) -> str:
+        return "jobicy"
+
+    @property
+    def query_id(self) -> str:
+        return self.name
+
+    @property
+    def parameters(self) -> Mapping[str, object]:
+        return {
+            "geo": self.geo, "industry": self.industry, "count": self.count,
+            "tag": self.tag,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class RemotiveSearchQuery:
@@ -43,6 +91,21 @@ class RemotiveSearchQuery:
     def key(self) -> str:
         return f"remotive:{self.name}"
 
+    @property
+    def source_id(self) -> str:
+        return "remotive"
+
+    @property
+    def query_id(self) -> str:
+        return self.name
+
+    @property
+    def parameters(self) -> Mapping[str, object]:
+        return {
+            "category": self.category, "search": self.search,
+            "limit": self.limit,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class SearchStrategy:
@@ -51,6 +114,7 @@ class SearchStrategy:
     name: str
     jobicy_queries: tuple[JobicySearchQuery, ...]
     remotive_queries: tuple[RemotiveSearchQuery, ...]
+    extra_queries: tuple[SourceQuery, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -60,12 +124,22 @@ class SearchStrategy:
         if len(self.remotive_queries) > MAX_QUERIES_PER_SOURCE:
             raise ValueError("Remotive strategy cannot exceed 4 queries")
         keys = [query.key for query in (*self.jobicy_queries, *self.remotive_queries)]
+        keys.extend(query.key for query in self.extra_queries)
         if len(keys) != len(set(keys)):
             raise ValueError("query names must be unique within each source")
+        counts: dict[str, int] = {}
+        for query in self.all_queries:
+            counts[query.source_id] = counts.get(query.source_id, 0) + 1
+        if any(count > MAX_QUERIES_PER_SOURCE for count in counts.values()):
+            raise ValueError("a source strategy cannot exceed 4 queries")
+
+    @property
+    def all_queries(self) -> tuple[object, ...]:
+        return (*self.jobicy_queries, *self.remotive_queries, *self.extra_queries)
 
     @property
     def expected_requests(self) -> int:
-        return len(self.jobicy_queries) + len(self.remotive_queries)
+        return len(self.all_queries)
 
 
 def create_full_search_strategy(
@@ -216,11 +290,17 @@ class MultiQueryDiscovery:
         *,
         jobicy_source_factory: Callable[[JobicySearchQuery], JobSource] | None = None,
         remotive_source_factory: Callable[[RemotiveSearchQuery], JobSource] | None = None,
+        registry: SourceRegistry | None = None,
+        source_factories: Mapping[str, Callable[[object], JobSource]] | None = None,
         usefulness_rule: QueryUsefulnessRule | None = None,
     ) -> None:
         self.strategy = strategy or create_default_search_strategy()
         self.jobicy_source_factory = jobicy_source_factory or self._jobicy_source
         self.remotive_source_factory = remotive_source_factory or self._remotive_source
+        self.registry = registry or create_default_source_registry()
+        self.source_factories = dict(source_factories or {})
+        self.source_factories.setdefault("jobicy", self.jobicy_source_factory)
+        self.source_factories.setdefault("remotive", self.remotive_source_factory)
         self.usefulness_rule = usefulness_rule or QueryUsefulnessRule()
 
     @staticmethod
@@ -245,15 +325,36 @@ class MultiQueryDiscovery:
         jobs_with_query: list[tuple[JobOpportunity, str, bool]] = []
         efficiencies: list[QueryEfficiency] = []
         previous_pipeline = process_opportunities([], profile)
-        definitions = [
-            ("Jobicy", query, self.jobicy_source_factory(query), JobicyJobAdapter())
-            for query in self.strategy.jobicy_queries
-        ] + [
-            ("Remotive", query, self.remotive_source_factory(query), RemotiveJobAdapter())
-            for query in self.strategy.remotive_queries
-        ]
+        definitions = []
+        for query in self.strategy.all_queries:
+            definition = self.registry.get(query.source_id)
+            if not definition.enabled:
+                raise ValueError(f"source {query.source_id} is disabled")
+            if not definition.capabilities.supports_query:
+                raise ValueError(f"source {query.source_id} does not support queries")
+            factory = self.source_factories.get(query.source_id)
+            if factory is not None:
+                source = factory(query)
+            elif definition.query_source_factory is not None:
+                source = definition.query_source_factory(query.parameters)
+            else:
+                raise ValueError(
+                    f"source {query.source_id} does not support query execution"
+                )
+            definitions.append(
+                (definition, query, source, definition.adapter_factory())
+            )
 
-        for source_name, query, source, adapter in definitions:
+        query_counts: dict[str, int] = {}
+        for definition, query, _, _ in definitions:
+            query_counts[query.source_id] = query_counts.get(query.source_id, 0) + 1
+            if query_counts[query.source_id] > definition.request_budget:
+                raise ValueError(
+                    f"source {query.source_id} exceeds its request budget"
+                )
+
+        for definition, query, source, adapter in definitions:
+            source_name = definition.display_name
             source_result = source.fetch()
             ingestion = (
                 ingest_batch(source_result.records, adapter)
@@ -261,6 +362,10 @@ class MultiQueryDiscovery:
                 else None
             )
             if ingestion is not None:
+                for opportunity in ingestion.opportunities:
+                    opportunity.source_id = definition.source_id
+                    opportunity.source_family = definition.source_family
+                    opportunity.source_instance = definition.source_instance
                 query_jobs = enrich_opportunities(ingestion.opportunities)
                 jobs_with_query.extend(
                     (job, query.key, query.broad) for job in query_jobs
@@ -336,14 +441,22 @@ class MultiQueryDiscovery:
             for item in pipeline.ranked_opportunities
         }
         intra_source = sum(
-            duplicate.primary.source == duplicate.duplicate.source
+            (
+                duplicate.primary.source_instance or duplicate.primary.source
+            ) == (
+                duplicate.duplicate.source_instance or duplicate.duplicate.source
+            )
             for duplicate in pipeline.duplicate_records
         )
         cross_source = pipeline.duplicates_detected - intra_source
-        unique_by_source: dict[str, int] = {"Jobicy": 0, "Remotive": 0}
+        unique_by_source: dict[str, int] = {
+            definition.source_id: 0 for definition in self.registry.enabled_sources()
+        }
         for item in pipeline.ranked_opportunities:
-            key = "Remotive" if item.normalized_job.source == "Remotive" else "Jobicy"
-            unique_by_source[key] += 1
+            source_id = item.normalized_job.source_id
+            if source_id is not None:
+                unique_by_source.setdefault(source_id, 0)
+                unique_by_source[source_id] += 1
         total_before = pipeline.total_received
         return MultiQueryDiscoveryResult(
             strategy=self.strategy,
@@ -399,6 +512,7 @@ def recommend_search_strategy(
         for query in (
             *result.strategy.jobicy_queries,
             *result.strategy.remotive_queries,
+            *result.strategy.extra_queries,
         )
     ]
     keep_keys = [key for key in all_keys if key in keep]
@@ -410,6 +524,9 @@ def recommend_search_strategy(
         ),
         remotive_queries=tuple(
             query for query in result.strategy.remotive_queries if query.key in keep
+        ),
+        extra_queries=tuple(
+            query for query in result.strategy.extra_queries if query.key in keep
         ),
     )
     return StrategyRecommendation(

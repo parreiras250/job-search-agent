@@ -1,7 +1,49 @@
 # Source Architecture Plan
 
-Status: research and planning only (Etapa 13A, 2026-08-16). No runtime change is
-part of this document.
+Status: Etapa 13A research completed and the bounded Etapa 13B framework
+implemented on 2026-08-16. Only Jobicy and Remotive are registered as real
+operational sources.
+
+## Etapa 13B implemented foundation
+
+The runtime now has an in-memory `SourceRegistry` whose ordered
+`SourceDefinition` entries carry stable `source_id`, `source_family`,
+`source_instance`, `SourceType`, immutable capabilities, factories, enablement,
+priority and request budget. `MultiSourceDiscovery` iterates enabled definitions
+without provider branches and keeps failure isolation, deterministic ordering and
+the existing human-readable Jobicy/Remotive summaries.
+
+Search execution accepts generic `SourceQuery` entries in addition to the two
+legacy typed query collections. Contribution metrics use stable source IDs, and
+capability, enablement and per-source request budget checks happen at the
+execution boundary. The legacy fields remain temporarily to preserve the public
+behavior of the current broad/full modes.
+
+Normalized opportunities and SQLite schema version 4 store explicit source
+identity. Lifecycle reconciliation compares exact `(source_family,
+source_instance)` observations and no longer parses platform identity from a
+display string. Existing Jobicy and Remotive rows receive an exact, idempotent
+migration; unknown legacy labels are deliberately not guessed.
+
+Offline contract tests exercise a third fictitious source, a fictitious tenant,
+a feed, disabled definitions, five-source failure isolation, generic query
+attribution and exact tenant lifecycle matching. No Greenhouse, Lever or other
+new source was added to the operational registry.
+
+### Adding a source in Etapa 13C+
+
+1. Implement `JobSource.fetch()` and an adapter using documented/authorized
+   access only.
+2. Register one validated `SourceDefinition` with explicit identity,
+   capabilities, attribution policy and conservative budget.
+3. Add offline fixtures and contract tests for zero results, malformed payloads,
+   partial failure, provenance and lifecycle authority.
+4. Enable it only after legal/access review and a controlled validation. Tenant
+   sources must use a distinct `source_instance` per tenant.
+
+Durable multi-observation provenance, authoritative multi-source lifecycle,
+company registry, automatic source discovery and normalized health history stay
+deferred; 13B intentionally does not pretend those later controls are complete.
 
 ## Executive conclusion
 

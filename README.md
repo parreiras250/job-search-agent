@@ -20,9 +20,10 @@ endpoints públicos.
 O resultado processado também pode ser salvo localmente em SQLite, permitindo
 reconhecer vagas novas, já conhecidas ou atualizadas entre execuções.
 Um comando principal conecta as consultas broad de Jobicy e Remotive ao pipeline
-e ao histórico SQLite em uma única execução explícita.
+e ao histórico SQLite. O CRM pode ser sincronizado com Google Sheets, e um
+LaunchAgent opcional permite executar esse mesmo fluxo semanalmente no Mac.
 Ainda **não** há descoberta automática de empresas, scraping, inteligência
-artificial, conexão com Google Sheets ou automação semanal.
+artificial, servidor cloud ou notificações.
 
 ## Estrutura
 
@@ -58,9 +59,12 @@ daniel-job-agent/
 │       ├── repository.py     # Persistência local centralizada em SQLite
 │       ├── reporting.py      # Contagens compartilhadas dos demos reais
 │       ├── run_agent.py      # CLI principal do fluxo end-to-end
+│       ├── scheduler.py      # Configuração e controle do LaunchAgent
+│       ├── scheduler_cli.py  # Install/status/start/stop/run-now/uninstall
 │       ├── rules.py          # Regras locais de classificação e decisão
 │       ├── search_strategy.py # Estratégia e métricas multi-query
-│       └── sources.py        # Leitura HTTP de fontes externas
+│       ├── sources.py        # Leitura HTTP de fontes externas
+│       └── weekly_run.py     # Workflow semanal, lock, Sheets e histórico
 ├── tests/
 │   ├── test_candidate_profile.py
 │   ├── test_agent.py
@@ -79,7 +83,8 @@ daniel-job-agent/
 │   ├── test_pipeline.py
 │   ├── test_repository.py
 │   ├── test_rules.py
-│   └── test_search_strategy.py
+│   ├── test_search_strategy.py
+│   └── test_scheduler.py
 ├── .env.example              # Exemplo de configurações e segredos
 ├── .gitignore                # Arquivos que o Git deve ignorar
 ├── README.md                 # Documentação do projeto
@@ -1043,7 +1048,7 @@ na reabertura, enquanto `reopened_at` preserva a transição mais recente.
 A arquitetura também aceita `VerificationStatus` explícito no futuro, mas não
 interpreta 404 como fechamento e não consulta individualmente URLs nesta etapa.
 
-O banco usa `PRAGMA user_version = 2`. Ao abrir um banco anterior, o repository
+O banco usa `PRAGMA user_version = 3`. Ao abrir um banco anterior, o repository
 consulta `PRAGMA table_info` e executa `ALTER TABLE ADD COLUMN` somente para
 colunas lifecycle ausentes. A migração é idempotente, não usa `DROP TABLE` e
 preserva vagas e CRM existentes. Não é necessário apagar `data/job_agent.db`.
@@ -1058,6 +1063,140 @@ Para ver a sequência completa sem rede e usando banco temporário:
 ```bash
 PYTHONPATH=src python3 -m daniel_job_agent.lifecycle_demo
 ```
+
+## Weekly Automation on macOS
+
+O macOS possui um scheduler nativo chamado `launchd`. Um **LaunchAgent** é uma
+tarefa pertencente ao usuário: não usa `sudo`, não precisa deixar o Terminal
+aberto e volta a ficar disponível quando o usuário entra novamente no Mac. Esta
+etapa gera automaticamente `~/Library/LaunchAgents/com.daniel.job-agent.plist`;
+não é necessário editar XML.
+
+O horário padrão é **toda segunda-feira às 08:00**, no horário local do Mac. O
+plist chama diretamente:
+
+```text
+/Users/danielparreiras/job-search-agent/.venv/bin/python
+```
+
+Portanto, a execução não depende de `source .venv/bin/activate`. O working
+directory também é fixado no diretório do projeto. O fluxo semanal reutiliza o
+mesmo `DanielJobAgent`: broad discovery, enrichment, ranking, SQLite sync e
+lifecycle. Se Sheets estiver configurado, o push acontece depois da
+persistência; uma falha de Sheets não desfaz vagas salvas e produz
+`PARTIAL_FAILURE` (exit code 2). Sucesso usa exit code 0 e falha significativa
+usa exit code 1.
+
+### Configuração local
+
+Copie `.env.example` para `.env` e ajuste somente o arquivo local, ignorado pelo
+Git:
+
+```dotenv
+JOB_AGENT_DB=data/job_agent.db
+JOB_AGENT_WEEKDAY=Monday
+JOB_AGENT_HOUR=8
+JOB_AGENT_MINUTE=0
+GOOGLE_SPREADSHEET_ID=
+GOOGLE_SHEET_NAME=Job CRM
+GOOGLE_CREDENTIALS_PATH=credentials.json
+GOOGLE_TOKEN_PATH=token.json
+```
+
+Deixe `GOOGLE_SPREADSHEET_ID` vazio para não sincronizar Sheets. Quando ele
+estiver preenchido, `credentials.json`, `token.json` e o ID precisam estar
+disponíveis antes da instalação. A execução agendada **nunca abre OAuth**: faça
+ao menos um push/pull manual antes para criar `token.json`. O plist contém
+somente caminhos e horário; não contém ID da planilha, tokens ou credentials.
+
+Para alterar o horário, edite `JOB_AGENT_WEEKDAY`, `JOB_AGENT_HOUR` e
+`JOB_AGENT_MINUTE` e execute `uninstall` seguido de `install` para regenerar o
+plist. Os nomes de weekday são em inglês (`Monday`, `Tuesday`, etc.).
+
+### Mini manual
+
+Execute os comandos na raiz do projeto:
+
+INSTALL:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.scheduler_cli install
+```
+
+CHECK:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.scheduler_cli status
+```
+
+PAUSE:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.scheduler_cli stop
+```
+
+RESUME:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.scheduler_cli start
+```
+
+RUN NOW:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.scheduler_cli run-now
+```
+
+REMOVE:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.scheduler_cli uninstall
+```
+
+`stop` desabilita e descarrega a tarefa, mas mantém o plist. Ela pode ficar
+parada por tempo indefinido; `start` habilita e carrega o mesmo LaunchAgent
+novamente. Nenhuma dessas ações apaga SQLite, CRM, histórico, token, credentials,
+planilha ou logs. `uninstall` descarrega a tarefa e remove apenas o plist gerado;
+também não apaga esses dados. Após `install` ou `start`, a configuração persiste
+sem Terminal aberto e volta após reiniciar o Mac e fazer login. Se foi executado
+`stop`, o estado desabilitado persiste até `start`.
+
+`run-now` chama exatamente o workflow semanal sem alterar Monday 08:00. Um lock
+em `data/weekly_run.lock` impede duas execuções simultâneas. Se o PID do lock
+estiver ativo, a segunda execução termina com mensagem segura; um lock cujo PID
+não existe é removido, e o lock é limpo após sucesso ou erro normal.
+
+### Logs e histórico
+
+O LaunchAgent grava saída e erros separadamente:
+
+```text
+logs/job_agent.out.log
+logs/job_agent.err.log
+```
+
+`logs/` é ignorado pelo Git. Antes de cada workflow, arquivos maiores que 5 MiB
+são reduzidos ao 1 MiB mais recente. O resumo informa discovery, persistência,
+lifecycle, Sheets e a etapa que falhou, sem imprimir secrets.
+
+O schema SQLite versionado em `PRAGMA user_version = 3` inclui `agent_runs` com
+horários, status, fontes, contagens, transições lifecycle, resultado de Sheets e
+um resumo curto de erro. Payloads, tokens e credentials não são armazenados. O
+comando `status` mostra a instalação, se está carregada, horário, caminhos e a
+execução mais recente. A migração é idempotente e preserva todas as vagas e os
+campos manuais do CRM.
+
+### Limitações da execução local
+
+- Mac ligado, usuário logado: o LaunchAgent pode executar no horário.
+- Mac dormindo: `launchd` pode executar ao acordar, mas não há garantia de
+  execução exatamente às 08:00.
+- Mac desligado: nada executa; não existe servidor remoto para recuperar aquele
+  horário.
+- Usuário sem login: um LaunchAgent de usuário não está ativo; ele volta a ficar
+  disponível no próximo login.
+
+Esta etapa não configura wake timers nem altera opções de energia.
 
 ## Como funciona o fluxo de decisão
 
@@ -1156,12 +1295,12 @@ Anos de experiência são tratados apenas como um sinal suave:
   o histórico SQLite ainda não agrega métricas de queries para concluir que uma
   consulta será sempre inútil.
 - Não há framework completo de migrations; existe apenas a migração idempotente
-  e versionada necessária para o schema lifecycle atual.
+  e versionada necessária para lifecycle e histórico leve de execuções.
 - Fechamento por misses é conservador, mas ainda depende da cobertura dos
   resultados retornados pelas fontes broad.
 - Não há verificação individual de URL nem inferência automática baseada em 404.
-- O agente só roda quando o comando é iniciado manualmente; ainda não há
-  scheduler, notificações ou automação semanal.
+- O scheduler é local: não oferece execução 24/7, notificações nem servidor
+  remoto.
 - O CRM é apenas terminal e estrutura tabular; não há interface gráfica nem
   interface gráfica.
 - Push e pull não são executados automaticamente; conflitos simultâneos entre

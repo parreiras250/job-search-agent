@@ -91,7 +91,29 @@ _AUTOMATIC_COLUMNS = (
     "unknowns",
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+
+
+@dataclass(frozen=True, slots=True)
+class AgentRunHistory:
+    """Metadados operacionais leves; nunca contém payloads ou secrets."""
+
+    run_id: int
+    started_at: datetime
+    finished_at: datetime
+    status: str
+    sources_succeeded: list[str]
+    sources_failed: list[str]
+    jobs_received: int
+    new_count: int
+    existing_count: int
+    updated_count: int
+    lifecycle_misses: int
+    possibly_closed: int
+    newly_closed: int
+    reopened: int
+    sheets_sync_success: bool | None
+    error_summary: str | None
 
 
 def _utc_now() -> datetime:
@@ -212,6 +234,28 @@ class JobRepository:
         self.connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_opportunity_company_role ON opportunities(company_normalized, role_normalized)"
         )
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS agent_runs (
+                run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at TEXT NOT NULL,
+                finished_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                sources_succeeded TEXT NOT NULL,
+                sources_failed TEXT NOT NULL,
+                jobs_received INTEGER NOT NULL,
+                new_count INTEGER NOT NULL,
+                existing_count INTEGER NOT NULL,
+                updated_count INTEGER NOT NULL,
+                lifecycle_misses INTEGER NOT NULL,
+                possibly_closed INTEGER NOT NULL,
+                newly_closed INTEGER NOT NULL,
+                reopened INTEGER NOT NULL,
+                sheets_sync_success INTEGER,
+                error_summary TEXT
+            )
+            """
+        )
         self._migrate_schema()
         self.connection.commit()
 
@@ -251,6 +295,68 @@ class JobRepository:
     def count(self) -> int:
         row = self.connection.execute("SELECT COUNT(*) AS count FROM opportunities").fetchone()
         return int(row["count"])
+
+    def record_agent_run(
+        self,
+        *,
+        started_at: datetime,
+        finished_at: datetime,
+        status: str,
+        sources_succeeded: list[str],
+        sources_failed: list[str],
+        jobs_received: int,
+        new_count: int,
+        existing_count: int,
+        updated_count: int,
+        lifecycle_misses: int,
+        possibly_closed: int,
+        newly_closed: int,
+        reopened: int,
+        sheets_sync_success: bool | None,
+        error_summary: str | None,
+    ) -> int:
+        cursor = self.connection.execute(
+            """INSERT INTO agent_runs (
+               started_at, finished_at, status, sources_succeeded, sources_failed,
+               jobs_received, new_count, existing_count, updated_count,
+               lifecycle_misses, possibly_closed, newly_closed, reopened,
+               sheets_sync_success, error_summary
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                _as_utc(started_at).isoformat(), _as_utc(finished_at).isoformat(),
+                status, _dump(sources_succeeded), _dump(sources_failed), jobs_received,
+                new_count, existing_count, updated_count, lifecycle_misses,
+                possibly_closed, newly_closed, reopened,
+                _bool_to_db(sheets_sync_success), error_summary,
+            ),
+        )
+        self.connection.commit()
+        return int(cursor.lastrowid)
+
+    def latest_agent_run(self) -> AgentRunHistory | None:
+        row = self.connection.execute(
+            "SELECT * FROM agent_runs ORDER BY run_id DESC LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        return AgentRunHistory(
+            run_id=int(row["run_id"]),
+            started_at=datetime.fromisoformat(row["started_at"]),
+            finished_at=datetime.fromisoformat(row["finished_at"]),
+            status=row["status"],
+            sources_succeeded=json.loads(row["sources_succeeded"]),
+            sources_failed=json.loads(row["sources_failed"]),
+            jobs_received=int(row["jobs_received"]),
+            new_count=int(row["new_count"]),
+            existing_count=int(row["existing_count"]),
+            updated_count=int(row["updated_count"]),
+            lifecycle_misses=int(row["lifecycle_misses"]),
+            possibly_closed=int(row["possibly_closed"]),
+            newly_closed=int(row["newly_closed"]),
+            reopened=int(row["reopened"]),
+            sheets_sync_success=_bool_from_db(row["sheets_sync_success"]),
+            error_summary=row["error_summary"],
+        )
 
     def _find_existing(self, job: JobOpportunity) -> sqlite3.Row | None:
         row = self.connection.execute(

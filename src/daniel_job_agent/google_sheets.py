@@ -288,6 +288,34 @@ def authenticate_google(config: GoogleSheetsConfig) -> Any:
     return credentials
 
 
+def authenticate_google_noninteractive(config: GoogleSheetsConfig) -> Any:
+    """Carrega/atualiza OAuth existente sem jamais abrir navegador."""
+
+    if not config.credentials_path.is_file():
+        raise RuntimeError(f"Google credentials file not found: {config.credentials_path}")
+    if not config.token_path.is_file():
+        raise RuntimeError(
+            f"Google token file not found: {config.token_path}; run a manual Sheets command first"
+        )
+    try:
+        from google.auth.transport.requests import Request
+        from google.oauth2.credentials import Credentials
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError(
+            "Google dependencies are not installed; run pip install -r requirements.txt"
+        ) from exc
+    credentials = Credentials.from_authorized_user_file(
+        str(config.token_path), SHEETS_SCOPES
+    )
+    if credentials.expired and credentials.refresh_token:
+        credentials.refresh(Request())
+        config.token_path.write_text(credentials.to_json(), encoding="utf-8")
+        config.token_path.chmod(0o600)
+    if not credentials.valid:
+        raise RuntimeError("Stored Google token is invalid; renew it manually")
+    return credentials
+
+
 def create_sheets_service(credentials: Any) -> Any:
     """Cria o cliente oficial somente após a autenticação explícita."""
 

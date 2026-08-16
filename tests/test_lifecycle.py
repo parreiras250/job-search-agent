@@ -274,13 +274,13 @@ class LifecycleSchemaMigrationTests(unittest.TestCase):
             self.assertEqual(repository.count(), 1)
             self.assertIn("lifecycle_status", columns)
             self.assertIn("consecutive_misses", columns)
-            self.assertEqual(version, 2)
+            self.assertEqual(version, 3)
             repository.close()
 
             reopened = JobRepository(path)
             self.assertEqual(reopened.count(), 1)
             self.assertEqual(
-                reopened.connection.execute("PRAGMA user_version").fetchone()[0], 2
+                reopened.connection.execute("PRAGMA user_version").fetchone()[0], 3
             )
             reopened.close()
 

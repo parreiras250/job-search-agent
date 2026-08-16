@@ -77,6 +77,7 @@ from .pipeline import (
 )
 from .profiles import create_daniel_profile
 from .repository import (
+    AgentRunHistory,
     DEFAULT_DATABASE_PATH,
     JobRepository,
     StoredOpportunity,
@@ -140,6 +141,7 @@ __all__ = [
     "ApplicationStatus",
     "ApplicationTracking",
     "AgentRunResult",
+    "AgentRunHistory",
     "AUTOMATIC_FIELDS",
     "AUTOMATIC_SHEET_HEADERS",
     "BaseJobAdapter",

@@ -36,3 +36,6 @@ credentials.json
 token.json
 google-credentials*.json
 google-token*.json
+
+# Configuração operacional e logs locais
+logs/

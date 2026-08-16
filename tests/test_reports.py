@@ -70,6 +70,7 @@ def run_agent(repository, *, jobicy_result=None, remotive_result=None):
     discovery = MultiSourceDiscovery(
         jobicy_source=FakeSource(jobicy_result or success([jobicy(1)])),
         remotive_source=FakeSource(remotive_result or success([remotive(2)])),
+        wwr_source=FakeSource(success([])),
     )
     return DanielJobAgent(repository, discovery=discovery, clock=StepClock()).run()
 
@@ -261,6 +262,7 @@ class WeeklyReportIntegrationTests(unittest.TestCase):
             discovery = MultiSourceDiscovery(
                 jobicy_source=FakeSource(success([jobicy(1)])),
                 remotive_source=FakeSource(success([remotive(2)])),
+                wwr_source=FakeSource(success([])),
             )
             outcome = run_weekly(
                 config,

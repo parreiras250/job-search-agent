@@ -170,13 +170,18 @@ def create_full_search_strategy(
 
 
 def create_default_search_strategy() -> SearchStrategy:
-    """Estratégia conservadora calibrada para executar somente as duas broad."""
+    """Estratégia operacional: duas broad e o único feed WWR escolhido."""
 
     full = create_full_search_strategy()
     return SearchStrategy(
         name="Daniel broad sales baseline",
         jobicy_queries=full.jobicy_queries[:1],
         remotive_queries=full.remotive_queries[:1],
+        extra_queries=(
+            SourceQuery(
+                "weworkremotely", "sales_marketing_feed", {}, broad=True
+            ),
+        ),
     )
 
 
@@ -330,13 +335,15 @@ class MultiQueryDiscovery:
             definition = self.registry.get(query.source_id)
             if not definition.enabled:
                 raise ValueError(f"source {query.source_id} is disabled")
-            if not definition.capabilities.supports_query:
+            if query.parameters and not definition.capabilities.supports_query:
                 raise ValueError(f"source {query.source_id} does not support queries")
             factory = self.source_factories.get(query.source_id)
             if factory is not None:
                 source = factory(query)
             elif definition.query_source_factory is not None:
                 source = definition.query_source_factory(query.parameters)
+            elif not query.parameters:
+                source = definition.source_factory()
             else:
                 raise ValueError(
                     f"source {query.source_id} does not support query execution"
@@ -450,7 +457,7 @@ class MultiQueryDiscovery:
         )
         cross_source = pipeline.duplicates_detected - intra_source
         unique_by_source: dict[str, int] = {
-            definition.source_id: 0 for definition in self.registry.enabled_sources()
+            definition.source_id: 0 for definition, _, _, _ in definitions
         }
         for item in pipeline.ranked_opportunities:
             source_id = item.normalized_job.source_id

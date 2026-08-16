@@ -90,14 +90,15 @@ def definition(
 
 
 class SourceRegistryTests(unittest.TestCase):
-    def test_default_registry_contains_only_current_sources(self) -> None:
+    def test_default_registry_contains_current_sources(self) -> None:
         registry = create_default_source_registry()
-        self.assertEqual([item.source_id for item in registry.list_all()], ["jobicy", "remotive"])
+        self.assertEqual([item.source_id for item in registry.list_all()], ["jobicy", "remotive", "weworkremotely"])
         self.assertEqual(
             [item.default_config for item in registry.list_all()],
             [
                 {"geo": "latam", "industry": "seller", "count": 100, "tag": None},
                 {"category": "sales", "company_name": None, "search": None, "limit": None},
+                {"feed_url": "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"},
             ],
         )
 

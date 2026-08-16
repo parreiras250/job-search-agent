@@ -439,25 +439,42 @@ horas. Não há polling, retries agressivos nem múltiplas buscas automáticas.
 Qualquer saída futura deve manter a URL original e identificar `Remotive` como
 fonte, conforme os termos de atribuição. A consulta real não faz parte dos testes.
 
+## We Work Remotely RSS
+
+O We Work Remotely entra pelo RSS público oficial da categoria Sales and
+Marketing. O parser usa somente a biblioteca padrão, faz um GET e preserva a URL
+da página WWR e `source = We Work Remotely` para attribution. `remote=True` vem
+do escopo do board; `brazil_eligible` continua desconhecido e a região de cada
+item passa pelas regras geográficas existentes.
+
+O primeiro teste real deve ser executado manualmente, uma única vez:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.wwr_demo
+```
+
+Esse comando não é executado pela suíte de testes.
+
 ## Discovery multi-source
 
-`MultiSourceDiscovery` executa uma consulta Jobicy e uma consulta Remotive,
-converte cada resposta com seu próprio adapter e reúne as oportunidades válidas
-antes do enrichment e do pipeline global.
+`MultiSourceDiscovery` executa Jobicy, Remotive e o RSS Sales and Marketing do
+We Work Remotely, converte cada resposta com seu próprio adapter e reúne as
+oportunidades válidas antes do enrichment e do pipeline global.
 
 ```text
-Jobicy  ─┐
-         ├→ MultiSourceDiscovery → global dedup → pipeline → ranking
-Remotive ┘
+Jobicy           ─┐
+Remotive          ├→ MultiSourceDiscovery → global dedup → pipeline → ranking
+We Work Remotely ─┘
 ```
 
 As configurações padrão ficam em estruturas pequenas e alteráveis:
 
 - Jobicy: `geo=latam`, `industry=seller`, `count=100`, sem `tag`;
 - Remotive: `category=sales`, sem `search`, empresa ou limite.
+- We Work Remotely: RSS público oficial Sales and Marketing, sem filtro extra.
 
-Cada fonte é consultada exatamente uma vez. Uma falha da Jobicy não interrompe
-a Remotive, e uma falha da Remotive não interrompe a Jobicy. O resultado mantém
+Cada fonte é consultada exatamente uma vez. Uma falha isolada não interrompe as
+demais. O resultado mantém
 separadamente status, mensagem de falha, recebidas, convertidas, warnings e erros
 de ingestão por fonte. Essas são as métricas source-level.
 
@@ -772,7 +789,7 @@ o CRM manual permanece após uma atualização automática. A função
 O comando principal executa explicitamente o primeiro fluxo real completo:
 
 ```text
-Jobicy broad + Remotive broad
+Jobicy broad + Remotive broad + WWR Sales and Marketing RSS
 → MultiSourceDiscovery
 → enrichment
 → pipeline e ranking
@@ -782,7 +799,8 @@ Jobicy broad + Remotive broad
 
 A estratégia operacional padrão é a broad já centralizada em
 `create_default_search_strategy`: Jobicy usa `geo=latam`, `industry=seller` e
-`count=100`; Remotive usa `category=sales`. O orquestrador apenas converte essa
+`count=100`; Remotive usa `category=sales`; WWR usa o único feed escolhido. O
+orquestrador apenas converte essa
 configuração para `MultiSourceDiscovery`: não replica adapters, enriquecimento,
 score, deduplicação nem SQL.
 
@@ -1339,9 +1357,8 @@ Anos de experiência são tratados apenas como um sinal suave:
 
 ### Source expansion research
 
-A Etapa 13A documentou a auditoria para escalar além de Jobicy e Remotive. A
-Etapa 13B implementa a base genérica, mantendo somente essas duas fontes reais
-habilitadas:
+A Etapa 13A documentou a auditoria, a Etapa 13B implementou a base genérica e a
+Etapa 13C registra o We Work Remotely como terceira fonte real habilitada:
 
 - [Source research catalog](docs/SOURCE_RESEARCH.md): evidências oficiais,
   incertezas, restrições e matriz P0/P1/P2/DEFER.
@@ -1363,7 +1380,7 @@ observações continuam explicitamente fora desta etapa.
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- O registry operacional desta etapa contém somente Jobicy e Remotive; os
+- O registry operacional contém Jobicy, Remotive e We Work Remotely; os
   componentes isolados de Greenhouse e Lever não fazem parte do discovery
   semanal genérico.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as

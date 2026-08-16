@@ -68,23 +68,26 @@ class MultiSourceDiscoveryTests(unittest.TestCase):
     def run_discovery(self, jobicy: SourceResult, remotive: SourceResult):
         jobicy_source = StubSource(jobicy)
         remotive_source = StubSource(remotive)
+        wwr_source = StubSource(success([]))
         result = MultiSourceDiscovery(
             jobicy_source=jobicy_source,
             remotive_source=remotive_source,
+            wwr_source=wwr_source,
         ).run(create_daniel_profile())
         self.assertEqual(jobicy_source.calls, 1)
         self.assertEqual(remotive_source.calls, 1)
+        self.assertEqual(wwr_source.calls, 1)
         return result
 
     def test_both_sources_succeed_with_global_counts_and_ranking(self):
         result = self.run_discovery(
             success([jobicy_record()]), success([remotive_record()])
         )
-        self.assertEqual(result.sources_attempted, ["Jobicy", "Remotive"])
-        self.assertEqual(result.sources_succeeded, ["Jobicy", "Remotive"])
+        self.assertEqual(result.sources_attempted, ["Jobicy", "Remotive", "We Work Remotely"])
+        self.assertEqual(result.sources_succeeded, ["Jobicy", "Remotive", "We Work Remotely"])
         self.assertEqual(result.sources_failed, [])
-        self.assertEqual(result.jobs_received_by_source, {"Jobicy": 1, "Remotive": 1})
-        self.assertEqual(result.jobs_converted_by_source, {"Jobicy": 1, "Remotive": 1})
+        self.assertEqual(result.jobs_received_by_source, {"Jobicy": 1, "Remotive": 1, "We Work Remotely": 0})
+        self.assertEqual(result.jobs_converted_by_source, {"Jobicy": 1, "Remotive": 1, "We Work Remotely": 0})
         self.assertEqual(result.total_jobs_before_global_dedup, 2)
         self.assertEqual(result.global_unique_jobs, 2)
         self.assertEqual([item.rank for item in result.ranking], [1, 2])
@@ -93,7 +96,7 @@ class MultiSourceDiscoveryTests(unittest.TestCase):
 
     def test_jobicy_failure_does_not_stop_remotive(self):
         result = self.run_discovery(failure("Jobicy offline"), success([remotive_record()]))
-        self.assertEqual(result.sources_succeeded, ["Remotive"])
+        self.assertEqual(result.sources_succeeded, ["Remotive", "We Work Remotely"])
         self.assertEqual(result.sources_failed, ["Jobicy"])
         self.assertEqual(result.source_failure_messages, {"Jobicy": "Jobicy offline"})
         self.assertEqual(result.global_unique_jobs, 1)
@@ -101,21 +104,21 @@ class MultiSourceDiscoveryTests(unittest.TestCase):
 
     def test_remotive_failure_does_not_stop_jobicy(self):
         result = self.run_discovery(success([jobicy_record()]), failure("Remotive offline"))
-        self.assertEqual(result.sources_succeeded, ["Jobicy"])
+        self.assertEqual(result.sources_succeeded, ["Jobicy", "We Work Remotely"])
         self.assertEqual(result.sources_failed, ["Remotive"])
         self.assertEqual(result.source_failure_messages, {"Remotive": "Remotive offline"})
         self.assertEqual(result.global_unique_jobs, 1)
 
     def test_both_sources_can_fail_without_crashing(self):
         result = self.run_discovery(failure("one"), failure("two"))
-        self.assertEqual(result.sources_succeeded, [])
+        self.assertEqual(result.sources_succeeded, ["We Work Remotely"])
         self.assertEqual(result.sources_failed, ["Jobicy", "Remotive"])
         self.assertEqual(result.total_jobs_before_global_dedup, 0)
         self.assertEqual(result.ranking, [])
 
     def test_zero_jobs_is_success_and_both_zero_produce_empty_ranking(self):
         one_zero = self.run_discovery(success([]), success([remotive_record()]))
-        self.assertEqual(one_zero.sources_succeeded, ["Jobicy", "Remotive"])
+        self.assertEqual(one_zero.sources_succeeded, ["Jobicy", "Remotive", "We Work Remotely"])
         self.assertEqual(one_zero.jobs_received_by_source["Jobicy"], 0)
         both_zero = self.run_discovery(success([]), success([]))
         self.assertEqual(both_zero.sources_failed, [])
@@ -129,9 +132,9 @@ class MultiSourceDiscoveryTests(unittest.TestCase):
             ]),
             success([remotive_record()]),
         )
-        self.assertEqual(result.warnings_by_source, {"Jobicy": 1, "Remotive": 0})
-        self.assertEqual(result.errors_by_source, {"Jobicy": 1, "Remotive": 0})
-        self.assertEqual(result.jobs_converted_by_source, {"Jobicy": 1, "Remotive": 1})
+        self.assertEqual(result.warnings_by_source, {"Jobicy": 1, "Remotive": 0, "We Work Remotely": 0})
+        self.assertEqual(result.errors_by_source, {"Jobicy": 1, "Remotive": 0, "We Work Remotely": 0})
+        self.assertEqual(result.jobs_converted_by_source, {"Jobicy": 1, "Remotive": 1, "We Work Remotely": 0})
         self.assertEqual(result.global_unique_jobs, 2)
 
     def test_cross_source_duplicate_keeps_primary_source_and_records_duplicate(self):

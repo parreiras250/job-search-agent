@@ -86,6 +86,7 @@ class MultiSourceDiscovery:
         remotive_config: RemotiveDiscoveryConfig | None = None,
         jobicy_source: JobSource | None = None,
         remotive_source: JobSource | None = None,
+        wwr_source: JobSource | None = None,
         registry: SourceRegistry | None = None,
     ) -> None:
         self.jobicy_config = jobicy_config or JobicyDiscoveryConfig()
@@ -105,6 +106,7 @@ class MultiSourceDiscovery:
             },
             jobicy_source=jobicy_source,
             remotive_source=remotive_source,
+            wwr_source=wwr_source,
         )
         # Compatibilidade de inspeção para código/testes anteriores.
         self._source_instances = {
@@ -113,6 +115,7 @@ class MultiSourceDiscovery:
         }
         self.jobicy_source = self._source_instances.get("jobicy")
         self.remotive_source = self._source_instances.get("remotive")
+        self.wwr_source = self._source_instances.get("weworkremotely")
 
     def run(self, profile: CandidateProfile) -> MultiSourceDiscoveryResult:
         """Consulta N fontes habilitadas e processa juntas somente vagas válidas."""

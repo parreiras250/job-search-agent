@@ -94,7 +94,7 @@ not employer posting fees. `UNKNOWN` cost means it must be checked before work.
 
 | Source | Access / cost | Scope and likely fit | Reliability / attribution / ToS | Complexity | Priority | Status |
 |---|---|---|---|---|---|---|
-| [We Work Remotely](https://weworkremotely.com/remote-job-rss-feed) | Official public RSS; link attribution requested | Global remote; Sales and Marketing feed; strong role fit, geography must be evaluated per job | Official feed; stable feed semantics; attribution explicit | Low RSS adapter | P0 | VERIFIED |
+| [We Work Remotely](https://weworkremotely.com/remote-job-rss-feed) | Official public RSS; link attribution requested | Global remote; Sales and Marketing feed; strong role fit, geography evaluated per job | Official category feed integrated with one GET; WWR URL and attribution preserved | Low RSS adapter, implemented in 13C | P0 | IMPLEMENTED / VERIFIED |
 | [Arbeitnow](https://www.arbeitnow.com/blog/job-board-api) | Free no-key API; custom private API paid | Global endpoint but Europe-oriented coverage; remote flag; LATAM incremental gain uncertain | Official API; aggregated ATS data | Low | P1 pilot | VERIFIED |
 | [RemoteOK](https://remoteok.com/) | API/feed/auth/cost not verified in this audit | Remote/global and potentially sales relevant | Terms, attribution and automation need official verification | Unknown | P2 research | UNKNOWN |
 | [Himalayas](https://himalayas.app/) | Structured public access not verified | Remote/global; likely useful, LATAM coverage unmeasured | Verify official API/feed and terms | Unknown | P2 research | UNKNOWN |

@@ -7,8 +7,19 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Callable, Mapping
 
-from .ingestion import BaseJobAdapter, JobicyJobAdapter, RemotiveJobAdapter
-from .sources import JobSource, JobicyJobSource, RemotiveJobSource
+from .ingestion import (
+    BaseJobAdapter,
+    JobicyJobAdapter,
+    RemotiveJobAdapter,
+    WeWorkRemotelyJobAdapter,
+)
+from .sources import (
+    JobSource,
+    JobicyJobSource,
+    RemotiveJobSource,
+    WWR_SALES_MARKETING_RSS_URL,
+    WeWorkRemotelyJobSource,
+)
 
 
 class SourceType(str, Enum):
@@ -122,8 +133,9 @@ def create_default_source_registry(
     remotive_config: Mapping[str, object] | None = None,
     jobicy_source: JobSource | None = None,
     remotive_source: JobSource | None = None,
+    wwr_source: JobSource | None = None,
 ) -> SourceRegistry:
-    """Registra somente as duas fontes operacionais atuais, na ordem histórica."""
+    """Registra as três fontes operacionais na ordem determinística."""
 
     jobicy_values = {
         "geo": "latam", "industry": "seller", "count": 100, "tag": None,
@@ -174,5 +186,21 @@ def create_default_source_registry(
             query_source_factory=lambda parameters: RemotiveJobSource(**parameters),
             default_config=remotive_values,
             request_budget=4,
+        ),
+        SourceDefinition(
+            source_id="weworkremotely", display_name="We Work Remotely",
+            source_type=SourceType.FEED, source_family="weworkremotely",
+            source_instance="weworkremotely:sales-marketing",
+            capabilities=SourceCapabilities(
+                global_search=True, supports_query=False,
+                provides_description=True, provides_posted_date=True,
+                provides_external_id=True, provides_direct_url=True,
+                lifecycle_authority=LifecycleAuthority.OBSERVATIONAL,
+                requires_attribution=True,
+            ),
+            source_factory=(lambda: wwr_source) if wwr_source else WeWorkRemotelyJobSource,
+            adapter_factory=WeWorkRemotelyJobAdapter,
+            default_config={"feed_url": WWR_SALES_MARKETING_RSS_URL},
+            request_budget=1,
         ),
     ])

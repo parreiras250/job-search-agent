@@ -6,10 +6,12 @@ from enum import Enum
 import json
 import re
 import socket
+from email.utils import parsedate_to_datetime
 from typing import Mapping, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from xml.etree import ElementTree
 
 from .ingestion import RawJobRecord
 
@@ -22,6 +24,10 @@ DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
 DEFAULT_USER_AGENT = "DanielJobAgent/1.0 (public-job-board-reader)"
 JOBICY_API_BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
 REMOTIVE_API_BASE_URL = "https://remotive.com/api/remote-jobs"
+WWR_SALES_MARKETING_RSS_URL = (
+    "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"
+)
+MAX_RSS_BYTES = 5_000_000
 
 
 class SourceStatus(str, Enum):
@@ -402,3 +408,112 @@ class RemotiveJobSource(JobSource):
         if not records:
             return SourceResult(status=SourceStatus.NO_JOBS, records=[])
         return SourceResult(status=SourceStatus.SUCCESS, records=records)
+
+
+class WeWorkRemotelyJobSource(JobSource):
+    """Lê uma vez o RSS público oficial de Sales and Marketing do WWR."""
+
+    def __init__(
+        self,
+        *,
+        timeout: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+        transport: HttpTransport | None = None,
+    ) -> None:
+        if timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+        self.url = WWR_SALES_MARKETING_RSS_URL
+        self.timeout = timeout
+        self.transport = transport or UrllibHttpTransport()
+
+    def fetch(self) -> SourceResult:
+        try:
+            response = self.transport.get(
+                self.url,
+                timeout=self.timeout,
+                headers={
+                    "User-Agent": DEFAULT_USER_AGENT,
+                    "Accept": "application/rss+xml, application/xml, text/xml",
+                },
+            )
+        except HTTPError as error:
+            return SourceResult(
+                SourceStatus.HTTP_ERROR, [],
+                f"We Work Remotely returned HTTP {error.code}", error.code,
+            )
+        except (TimeoutError, socket.timeout):
+            return SourceResult(
+                SourceStatus.TIMEOUT, [], "We Work Remotely request timed out"
+            )
+        except URLError as error:
+            if isinstance(error.reason, (TimeoutError, socket.timeout)):
+                return SourceResult(
+                    SourceStatus.TIMEOUT, [], "We Work Remotely request timed out"
+                )
+            return SourceResult(
+                SourceStatus.CONNECTION_ERROR, [],
+                f"Could not connect to We Work Remotely: {error.reason}",
+            )
+        except OSError as error:
+            return SourceResult(
+                SourceStatus.CONNECTION_ERROR, [],
+                f"Could not connect to We Work Remotely: {error}",
+            )
+
+        if not 200 <= response.status < 300:
+            return SourceResult(
+                SourceStatus.HTTP_ERROR, [],
+                f"We Work Remotely returned HTTP {response.status}", response.status,
+            )
+        body = response.body
+        if len(body) > MAX_RSS_BYTES or b"<!DOCTYPE" in body.upper():
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD, [],
+                "We Work Remotely returned an unsafe or oversized RSS payload",
+            )
+        try:
+            root = ElementTree.fromstring(body)
+        except (ElementTree.ParseError, ValueError):
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD, [],
+                "We Work Remotely returned invalid RSS XML",
+            )
+        channel = root.find("channel") if root.tag == "rss" else None
+        if channel is None:
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD, [],
+                "We Work Remotely RSS must contain an rss/channel structure",
+            )
+
+        records = [self._item_record(item) for item in channel.findall("item")]
+        if not records:
+            return SourceResult(SourceStatus.NO_JOBS, [])
+        return SourceResult(SourceStatus.SUCCESS, records)
+
+    @staticmethod
+    def _item_record(item: ElementTree.Element) -> RawJobRecord:
+        def text(name: str) -> str | None:
+            value = item.findtext(name)
+            return value.strip() if value and value.strip() else None
+
+        combined_title = text("title") or ""
+        company, separator, role = combined_title.partition(":")
+        raw_date = text("pubDate")
+        date_posted: str | None = None
+        if raw_date is not None:
+            try:
+                date_posted = parsedate_to_datetime(raw_date).isoformat()
+            except (TypeError, ValueError, OverflowError):
+                # O adapter transformará este opcional presente em warning.
+                date_posted = raw_date
+        return {
+            "company": company.strip() if separator else "",
+            "role": role.strip() if separator else combined_title,
+            "job_url": text("link"),
+            "location": text("region"),
+            "description": text("description"),
+            "date_posted": date_posted,
+            "external_id": text("guid"),
+            "employment_type": text("category"),
+            "remote": True,
+            "brazil_eligible": None,
+        }

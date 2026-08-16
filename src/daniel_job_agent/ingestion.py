@@ -341,6 +341,13 @@ class GenericJobAdapter(BaseJobAdapter):
     url_field = "url"
 
 
+class WeWorkRemotelyJobAdapter(BaseJobAdapter):
+    """Converte o registro normalizado do RSS preservando link e attribution."""
+
+    source_name = "We Work Remotely"
+    report_extended_optional_fields = True
+
+
 class MockGreenhouseAdapter(BaseJobAdapter):
     """Simula localmente um formato diferente, sem acessar Greenhouse."""
 

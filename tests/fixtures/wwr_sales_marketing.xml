@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>We Work Remotely: Sales and Marketing</title>
+    <link>https://weworkremotely.com/categories/remote-sales-and-marketing-jobs</link>
+    <item>
+      <title>Alpha SaaS: Account Executive</title>
+      <region>Anywhere in the World</region>
+      <category>Full-Time</category>
+      <description><![CDATA[Own the full sales cycle for B2B SaaS customers.]]></description>
+      <pubDate>Sat, 15 Aug 2026 10:30:00 +0000</pubDate>
+      <guid>https://weworkremotely.com/remote-jobs/alpha-account-executive</guid>
+      <link>https://weworkremotely.com/remote-jobs/alpha-account-executive</link>
+    </item>
+    <item>
+      <title>Beta: Sales Development Representative</title>
+      <region>Latin America</region>
+      <category>Full-Time</category>
+      <description><![CDATA[Build outbound pipeline. Compensation may include commission.]]></description>
+      <pubDate>Fri, 14 Aug 2026 09:00:00 +0000</pubDate>
+      <guid>wwr-beta-sdr</guid>
+      <link>https://weworkremotely.com/remote-jobs/beta-sdr</link>
+    </item>
+    <item>
+      <title>Gamma: Regional Sales Manager</title>
+      <region>United States Only</region>
+      <category>Contract</category>
+      <description>Regional sales role.</description>
+      <pubDate>not-a-date</pubDate>
+      <guid>wwr-gamma-sales</guid>
+      <link>https://weworkremotely.com/remote-jobs/gamma-sales</link>
+    </item>
+    <item>
+      <title>Delta: Content Marketing Manager</title>
+      <region>Anywhere in the World</region>
+      <category>Full-Time</category>
+      <description>Lead marketing content. Salary: $80,000 USD annually.</description>
+      <pubDate>Thu, 13 Aug 2026 08:00:00 +0000</pubDate>
+      <guid>wwr-delta-marketing</guid>
+      <link>https://weworkremotely.com/remote-jobs/delta-marketing</link>
+    </item>
+    <item>
+      <title>Epsilon: Software Engineer</title>
+      <region>Anywhere in the World</region>
+      <category>Full-Time</category>
+      <description>Build distributed systems.</description>
+      <pubDate>Wed, 12 Aug 2026 07:00:00 +0000</pubDate>
+      <guid>wwr-epsilon-engineer</guid>
+      <link>https://weworkremotely.com/remote-jobs/epsilon-engineer</link>
+    </item>
+  </channel>
+</rss>

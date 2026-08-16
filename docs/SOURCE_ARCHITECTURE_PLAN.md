@@ -45,6 +45,24 @@ Durable multi-observation provenance, authoritative multi-source lifecycle,
 company registry, automatic source discovery and normalized health history stay
 deferred; 13B intentionally does not pretend those later controls are complete.
 
+## Etapa 13C: first operational feed
+
+We Work Remotely is the first real `FEED` registered through the generic
+framework. Its sole default instance is `weworkremotely:sales-marketing`, backed
+by the official public Sales and Marketing RSS and limited to one request. It is
+enabled after Jobicy and Remotive in deterministic order.
+
+The standard-library XML parser rejects DTD and oversized payloads and maps only
+RSS fields that are present and trustworthy. The original WWR page URL remains
+the primary job URL for attribution. Remote is confirmed by the board scope;
+Brazil eligibility remains unknown unless existing geographic rules can infer it
+from the item region.
+
+WWR has `OBSERVATIONAL` lifecycle authority. Its exact structured identity
+participates in the conservative miss policy, but it is not equivalent to a
+future authoritative company ATS. No HTML scraping, pagination, extra category
+feed or provider-specific scoring was introduced.
+
 ## Executive conclusion
 
 The current architecture is safe and well tested for Jobicy plus Remotive, but
@@ -330,37 +348,41 @@ Introduce contracts and an in-memory registry for the existing Jobicy and
 Remotive only. Preserve all outputs and lifecycle behavior. Generalize discovery
 iteration and source metrics; add compatibility tests. Do **not** add a source.
 
-### 13C — Observation and provenance foundation
+### 13C — We Work Remotely RSS integration (implemented)
+
+Register the official Sales and Marketing feed as the third operational source,
+with attribution, a one-request budget and observational lifecycle identity.
+
+### 13D — Observation and provenance foundation
 
 Model explicit source IDs/families and durable observations before using direct
 ATS authority. Migrate safely while preserving current `source` text.
 
-### 13D — ATS Wave 1 pilot
+### 13E — ATS Wave 1 pilot
 
 Register already implemented Greenhouse and Lever plus Ashby for a small manual
 company set. Add per-tenant isolation and budgets.
 
-### 13E — Company Registry
+### 13F — Company Registry
 
 SQLite registry, manual CLI, enable/disable, priorities, rotation and tenant
 health. No automatic company discovery yet.
 
-### 13F — Remote/Global Wave 1
+### 13G — Remote/Global Wave 1
 
-Pilot We Work Remotely RSS and Arbeitnow after attribution/terms review; compare
-incremental gain against current sources.
+Measure WWR incremental gain and only then evaluate another documented source.
 
-### 13G — Lifecycle authority
+### 13H — Lifecycle authority
 
 Activate authoritative ATS observations only after provenance and snapshot
 completeness are proven.
 
-### 13H — ATS Wave 2
+### 13I — ATS Wave 2
 
 Evaluate Workable, SmartRecruiters, Recruitee and Personio; add only those with
 verified zero-cost read access and meaningful company coverage.
 
-### 13I — LATAM wave
+### 13J — LATAM wave
 
 Research and pilot the best verified structured LATAM source. Do not scrape
 restricted sites to fill this gap.

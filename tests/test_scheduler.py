@@ -184,6 +184,7 @@ class WeeklyWorkflowTests(SchedulerTestCase):
         outcome = run_weekly(
             config, agent_factory=lambda repository: FakeAgent(result),
             sheets_sync=lambda repository, cfg: sheets, clock=self.clock(),
+            report_writer=lambda repository, history, agent, rows, directory: directory / "fake.md",
         )
         with JobRepository(config.database_path) as repository:
             history = repository.latest_agent_run()
@@ -215,6 +216,21 @@ class WeeklyWorkflowTests(SchedulerTestCase):
         self.assertEqual(outcome.status, "FAILURE")
         self.assertEqual(history.jobs_received, 0)
         self.assertIn("offline failure", history.error_summary)
+
+    def test_report_failure_does_not_rollback_completed_run(self) -> None:
+        config = self.config()
+        outcome = run_weekly(
+            config,
+            agent_factory=lambda repository: FakeAgent(FakeAgentResult()),
+            sheets_sync=lambda repository, cfg: (True, None, 4),
+            report_writer=lambda *args: (_ for _ in ()).throw(OSError("disk full")),
+            clock=self.clock(),
+        )
+        with JobRepository(config.database_path) as repository:
+            history = repository.latest_agent_run()
+        self.assertEqual((outcome.status, outcome.exit_code), ("PARTIAL_FAILURE", PARTIAL_FAILURE))
+        self.assertEqual(history.new_count, 2)
+        self.assertIn("Report: disk full", history.error_summary)
 
     def test_status_shows_latest_run(self) -> None:
         config, _, _ = self.execute_workflow(FakeAgentResult())

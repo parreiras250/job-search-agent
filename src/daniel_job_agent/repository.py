@@ -358,6 +358,50 @@ class JobRepository:
             error_summary=row["error_summary"],
         )
 
+    def list_agent_runs(self, *, limit: int = 10) -> list[AgentRunHistory]:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        rows = self.connection.execute(
+            "SELECT * FROM agent_runs ORDER BY run_id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [self._agent_run_from_row(row) for row in rows]
+
+    def get_agent_run(self, run_id: int) -> AgentRunHistory | None:
+        row = self.connection.execute(
+            "SELECT * FROM agent_runs WHERE run_id = ?", (run_id,)
+        ).fetchone()
+        return self._agent_run_from_row(row) if row else None
+
+    def update_agent_run_result(
+        self, run_id: int, *, status: str, error_summary: str | None
+    ) -> None:
+        self.connection.execute(
+            "UPDATE agent_runs SET status = ?, error_summary = ? WHERE run_id = ?",
+            (status, error_summary, run_id),
+        )
+        self.connection.commit()
+
+    @staticmethod
+    def _agent_run_from_row(row: sqlite3.Row) -> AgentRunHistory:
+        return AgentRunHistory(
+            run_id=int(row["run_id"]),
+            started_at=datetime.fromisoformat(row["started_at"]),
+            finished_at=datetime.fromisoformat(row["finished_at"]),
+            status=row["status"],
+            sources_succeeded=json.loads(row["sources_succeeded"]),
+            sources_failed=json.loads(row["sources_failed"]),
+            jobs_received=int(row["jobs_received"]),
+            new_count=int(row["new_count"]),
+            existing_count=int(row["existing_count"]),
+            updated_count=int(row["updated_count"]),
+            lifecycle_misses=int(row["lifecycle_misses"]),
+            possibly_closed=int(row["possibly_closed"]),
+            newly_closed=int(row["newly_closed"]),
+            reopened=int(row["reopened"]),
+            sheets_sync_success=_bool_from_db(row["sheets_sync_success"]),
+            error_summary=row["error_summary"],
+        )
+
     def _find_existing(self, job: JobOpportunity) -> sqlite3.Row | None:
         row = self.connection.execute(
             "SELECT * FROM opportunities WHERE job_url_normalized = ? ORDER BY id LIMIT 1",

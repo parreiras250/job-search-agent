@@ -87,6 +87,14 @@ from .repository import (
     SyncedOpportunity,
     sync_opportunities,
 )
+from .reports import (
+    ReportOpportunity,
+    SourceReport,
+    WeeklyReport,
+    build_weekly_report,
+    format_weekly_report,
+    save_weekly_report,
+)
 from .rules import (
     GeographicEligibility,
     MatchEvaluation,
@@ -195,6 +203,7 @@ __all__ = [
     "QueryEfficiency",
     "QueryUsefulnessRule",
     "RetentionDecision",
+    "ReportOpportunity",
     "RoleFamily",
     "RemotiveDiscoveryConfig",
     "RemotiveSearchQuery",
@@ -215,8 +224,10 @@ __all__ = [
     "VerificationStatus",
     "Seniority",
     "SourceResult",
+    "SourceReport",
     "SourceDiscoverySummary",
     "SourceStatus",
+    "WeeklyReport",
     "are_probably_duplicates",
     "calculate_match_score",
     "build_greenhouse_jobs_url",
@@ -224,6 +235,7 @@ __all__ = [
     "build_jobicy_jobs_url",
     "build_remotive_jobs_url",
     "build_sheet_values",
+    "build_weekly_report",
     "classify_role",
     "classify_role_family",
     "classify_seniority",
@@ -240,6 +252,7 @@ __all__ = [
     "evaluate_geographic_eligibility",
     "extract_years_experience",
     "format_query_efficiency_report",
+    "format_weekly_report",
     "is_clearly_irrelevant_role",
     "normalize_company",
     "normalize_job_url",
@@ -254,5 +267,6 @@ __all__ = [
     "records_to_table",
     "record_to_sheet_row",
     "merge_manual_sheet_values",
+    "save_weekly_report",
     "sync_opportunities",
 ]

@@ -1,6 +1,6 @@
 """Reconciliação conservadora do ciclo de vida das vagas armazenadas."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Mapping
@@ -37,6 +37,9 @@ class LifecycleResult:
     newly_closed: int
     reopened: int
     unchanged_lifecycle: int
+    possibly_closed_ids: list[int] = field(default_factory=list)
+    newly_closed_ids: list[int] = field(default_factory=list)
+    reopened_ids: list[int] = field(default_factory=list)
 
 
 def _source_family(source: str) -> str | None:
@@ -66,6 +69,9 @@ def reconcile_lifecycle(
     timestamp = now or datetime.now(timezone.utc)
     verification_map = verifications or {}
     open_seen = misses = possible = closed = reopened = unchanged = 0
+    possible_ids: list[int] = []
+    closed_ids: list[int] = []
+    reopened_ids: list[int] = []
 
     for stored in repository.list_all():
         job = stored.opportunity
@@ -84,6 +90,7 @@ def reconcile_lifecycle(
             open_seen += 1
             if was_reopened:
                 reopened += 1
+                reopened_ids.append(stored.internal_id)
             else:
                 unchanged += 1
             continue
@@ -91,6 +98,7 @@ def reconcile_lifecycle(
         if verification is VerificationStatus.CLOSED:
             if job.lifecycle_status is not JobLifecycleStatus.CLOSED:
                 closed += 1
+                closed_ids.append(stored.internal_id)
             else:
                 unchanged += 1
             repository.update_lifecycle_missing(
@@ -127,9 +135,14 @@ def reconcile_lifecycle(
         misses += 1
         if status is JobLifecycleStatus.POSSIBLY_CLOSED and job.lifecycle_status is not status:
             possible += 1
+            possible_ids.append(stored.internal_id)
         elif status is JobLifecycleStatus.CLOSED and job.lifecycle_status is not status:
             closed += 1
+            closed_ids.append(stored.internal_id)
         else:
             unchanged += 1
 
-    return LifecycleResult(open_seen, misses, possible, closed, reopened, unchanged)
+    return LifecycleResult(
+        open_seen, misses, possible, closed, reopened, unchanged,
+        possible_ids, closed_ids, reopened_ids,
+    )

@@ -57,7 +57,10 @@ daniel-job-agent/
 │       ├── persistence_demo.py # Demonstração offline do histórico SQLite
 │       ├── profiles.py       # Perfil profissional padrão do Daniel
 │       ├── repository.py     # Persistência local centralizada em SQLite
+│       ├── report_cli.py     # Consulta latest/history/show dos relatórios
+│       ├── report_demo.py    # Demonstração Markdown totalmente offline
 │       ├── reporting.py      # Contagens compartilhadas dos demos reais
+│       ├── reports.py        # Snapshot executivo e armazenamento Markdown
 │       ├── run_agent.py      # CLI principal do fluxo end-to-end
 │       ├── scheduler.py      # Configuração e controle do LaunchAgent
 │       ├── scheduler_cli.py  # Install/status/start/stop/run-now/uninstall
@@ -82,6 +85,7 @@ daniel-job-agent/
 │   ├── test_remotive_source.py
 │   ├── test_pipeline.py
 │   ├── test_repository.py
+│   ├── test_reports.py
 │   ├── test_rules.py
 │   ├── test_search_strategy.py
 │   └── test_scheduler.py
@@ -1197,6 +1201,65 @@ campos manuais do CRM.
   disponível no próximo login.
 
 Esta etapa não configura wake timers nem altera opções de energia.
+
+## Weekly Reports
+
+Cada `weekly_run` gera um snapshot executivo da rodada depois de discovery,
+persistência, lifecycle e Sheets. O relatório serve para entender o resultado
+em poucos segundos e inclui metadata da execução, saúde das fontes, contagens de
+discovery e SQLite, eventos lifecycle, snapshot do CRM por `ApplicationStatus`,
+até dez novas vagas relevantes e até dez vagas atualizadas. Vagas `KEEP` vêm
+antes de `REVIEW`; `REJECT` nunca aparece em **Best new opportunities**.
+
+Os arquivos ficam em `reports/`, que é ignorado pelo Git:
+
+```text
+reports/2026-08-17_080000_42.md  # snapshot histórico e imutável da run 42
+reports/latest.md                # cópia do relatório mais recente
+```
+
+`latest.md` é substituído somente quando um novo relatório termina de ser
+salvo. Os arquivos identificados por timestamp e `run_id` não são apagados nesta
+etapa. Como o CRM é contado durante a geração, editar uma candidatura depois não
+altera retroativamente um Markdown antigo.
+
+Para consultar o relatório mais recente:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.report_cli latest
+```
+
+Para consultar metadata das dez últimas execuções diretamente de `agent_runs`,
+sem reconstruir histórico lendo Markdown:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.report_cli history --limit 10
+```
+
+Para abrir uma rodada específica:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.report_cli show 42
+```
+
+Uma rodada sem vagas novas continua sendo sucesso e diz claramente que não há
+novos `KEEP` ou `REVIEW`. Se uma fonte ou Sheets falhar, o relatório mostra
+`PARTIAL_FAILURE` e uma causa curta; se discovery falhar completamente, ainda é
+tentado um relatório `FAILURE`. Uma falha ao gerar o próprio Markdown não
+reverte discovery, SQLite ou lifecycle: ela é registrada separadamente em
+`agent_runs` e no log.
+
+Logs e reports têm papéis diferentes. `logs/job_agent.*.log` preserva mensagens
+técnicas para diagnóstico; o Markdown é um resumo humano. O scheduler não mudou:
+`run-now` e a execução de segunda-feira usam o mesmo lock e o relatório é criado
+dentro desse workflow protegido. Não há email, Slack, PDF, dashboard ou nova tab
+no Google Sheets.
+
+Para ver um exemplo fictício sem rede, banco real ou Sheets:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.report_demo
+```
 
 ## Como funciona o fluxo de decisão
 

@@ -79,6 +79,10 @@ class SchedulerConfig:
     def err_log(self) -> Path:
         return self.logs_dir / "job_agent.err.log"
 
+    @property
+    def reports_dir(self) -> Path:
+        return self.project_dir / "reports"
+
     @classmethod
     def from_project(
         cls, project_dir: Path, *, environment: Mapping[str, str] | None = None,

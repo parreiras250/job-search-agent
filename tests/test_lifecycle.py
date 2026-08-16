@@ -90,6 +90,10 @@ class LifecycleStateMachineTests(unittest.TestCase):
             self.assertEqual(c.opportunity.lifecycle_status, expected_status)
             self.assertIs(c.opportunity.still_open, expected_open)
             self.assertEqual(result.misses_recorded, 1)
+            if run == 3:
+                self.assertEqual(result.possibly_closed_ids, [ids["C"]])
+            if run == 4:
+                self.assertEqual(result.newly_closed_ids, [ids["C"]])
 
         closed = self.repository.get(ids["C"])
         assert closed is not None
@@ -109,6 +113,7 @@ class LifecycleStateMachineTests(unittest.TestCase):
         reopened = self.repository.get(ids["C"])
         assert reopened is not None
         self.assertEqual(run5.reopened, 1)
+        self.assertEqual(run5.reopened_ids, [ids["C"]])
         self.assertEqual(reopened.opportunity.lifecycle_status, JobLifecycleStatus.OPEN)
         self.assertEqual(reopened.opportunity.consecutive_misses, 0)
         self.assertIs(reopened.opportunity.still_open, True)

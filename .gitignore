@@ -39,3 +39,4 @@ google-token*.json
 
 # Configuração operacional e logs locais
 logs/
+reports/

@@ -381,10 +381,16 @@ with attribution, a one-request budget and observational lifecycle identity.
 Model explicit source IDs/families and durable observations before using direct
 ATS authority. Migrate safely while preserving current `source` text.
 
-### 13E — ATS Wave 1 pilot
+### 13E — Greenhouse Direct ATS pilot (implemented)
 
-Register already implemented Greenhouse and Lever plus Ashby for a small manual
-company set. Add per-tenant isolation and budgets.
+Register the existing public Greenhouse source and adapter in generic discovery
+for a manually configured set of at most five companies. Each company is an
+independent `TENANT_BOARD` source, uses one request per run, reports health
+separately and produces `AUTHORITATIVE` observations. Cross-source duplicates
+remain one logical opportunity; an authoritative Greenhouse observation may
+promote the automatic primary data while preserving internal identity, history
+and manual CRM fields. No company registry, automatic tenant discovery, Lever
+or Ashby integration is part of this pilot.
 
 ### 13F — Company Registry
 
@@ -397,8 +403,8 @@ Measure WWR incremental gain and only then evaluate another documented source.
 
 ### 13H — Lifecycle authority
 
-Activate authoritative ATS observations only after provenance and snapshot
-completeness are proven.
+Expand the authoritative lifecycle policy beyond the bounded Greenhouse pilot
+only after provenance and snapshot completeness are proven for each source.
 
 ### 13I — ATS Wave 2
 

@@ -382,6 +382,7 @@ class GreenhouseJobAdapter(BaseJobAdapter):
     """Converte o formato real da listagem pública do Greenhouse."""
 
     source_name = "Greenhouse public Job Board"
+    report_extended_optional_fields = True
 
     def __init__(self, company_name: str) -> None:
         if not company_name.strip():
@@ -401,6 +402,9 @@ class GreenhouseJobAdapter(BaseJobAdapter):
             "job_url": record.get("absolute_url"),
             "location": location,
             "description": record.get("content"),
+            "external_id": (
+                str(record["id"]) if record.get("id") is not None else None
+            ),
             # These values are not structured in the list-jobs response.
             "remote": None,
             "brazil_eligible": None,

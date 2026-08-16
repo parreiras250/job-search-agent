@@ -135,12 +135,14 @@ from .search_strategy import (
     recommend_search_strategy,
 )
 from .source_registry import (
+    GreenhouseTenantConfig,
     LifecycleAuthority,
     SourceCapabilities,
     SourceDefinition,
     SourceRegistry,
     SourceType,
     create_default_source_registry,
+    create_greenhouse_pilot_definitions,
 )
 from .sources import (
     GreenhouseJobSource,
@@ -182,6 +184,7 @@ __all__ = [
     "GenericJobAdapter",
     "GreenhouseJobAdapter",
     "GreenhouseJobSource",
+    "GreenhouseTenantConfig",
     "IngestionError",
     "IngestionErrorType",
     "IngestionResult",
@@ -267,6 +270,7 @@ __all__ = [
     "create_broad_discovery",
     "create_default_search_strategy",
     "create_default_source_registry",
+    "create_greenhouse_pilot_definitions",
     "create_full_search_strategy",
     "create_search_strategy",
     "decide_retention",

@@ -1,0 +1,45 @@
+{
+  "jobs": [
+    {
+      "id": 1001,
+      "title": "Account Executive",
+      "absolute_url": "https://boards.greenhouse.io/pilot/jobs/1001",
+      "location": {"name": "Remote - LATAM"},
+      "content": "Own a B2B SaaS full sales cycle."
+    },
+    {
+      "id": 1002,
+      "title": "Account Executive",
+      "absolute_url": "https://boards.greenhouse.io/pilot/jobs/1002",
+      "location": {"name": "United States Only"},
+      "content": "Own regional accounts."
+    },
+    {
+      "id": 1003,
+      "title": "Sales Development Representative",
+      "absolute_url": "https://boards.greenhouse.io/pilot/jobs/1003",
+      "location": {"name": "Brazil Remote"},
+      "content": "Build outbound sales pipeline."
+    },
+    {
+      "id": 1004,
+      "title": "Software Engineer",
+      "absolute_url": "https://boards.greenhouse.io/pilot/jobs/1004",
+      "location": {"name": "Remote"},
+      "content": "Build distributed systems."
+    },
+    {
+      "id": 1005,
+      "title": "Account Manager",
+      "absolute_url": "https://boards.greenhouse.io/pilot/jobs/1005",
+      "location": {"name": "Unknown"}
+    },
+    {
+      "id": 1006,
+      "title": "Account Executive",
+      "absolute_url": "https://boards.greenhouse.io/pilot/jobs/1006",
+      "location": "malformed optional location",
+      "content": "This malformed record must not stop the tenant batch."
+    }
+  ]
+}

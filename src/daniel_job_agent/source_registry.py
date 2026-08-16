@@ -9,17 +9,22 @@ from typing import Callable, Mapping
 
 from .ingestion import (
     BaseJobAdapter,
+    GreenhouseJobAdapter,
     JobicyJobAdapter,
     RemotiveJobAdapter,
     WeWorkRemotelyJobAdapter,
 )
 from .sources import (
+    GreenhouseJobSource,
     JobSource,
     JobicyJobSource,
     RemotiveJobSource,
     WWR_SALES_MARKETING_RSS_URL,
     WeWorkRemotelyJobSource,
 )
+
+
+MAX_GREENHOUSE_PILOT_TENANTS = 5
 
 
 class SourceType(str, Enum):
@@ -33,6 +38,31 @@ class LifecycleAuthority(str, Enum):
     NONE = "NONE"
     OBSERVATIONAL = "OBSERVATIONAL"
     AUTHORITATIVE = "AUTHORITATIVE"
+
+
+@dataclass(frozen=True, slots=True)
+class GreenhouseTenantConfig:
+    """Configuração manual e temporária de um tenant do piloto Greenhouse."""
+
+    company_key: str
+    company_name: str
+    board_token: str
+    enabled: bool = True
+    priority: int = 100
+
+    def __post_init__(self) -> None:
+        if (
+            not self.company_key
+            or self.company_key != self.company_key.strip().casefold()
+            or any(character not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for character in self.company_key)
+        ):
+            raise ValueError("company_key must be a lowercase slug")
+        if not self.company_name.strip():
+            raise ValueError("company_name cannot be empty")
+        if not self.board_token.strip():
+            raise ValueError("board_token cannot be empty")
+        if self.priority < 0:
+            raise ValueError("priority cannot be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +157,62 @@ class SourceRegistry:
         self._definitions[source_id] = replace(self.get(source_id), enabled=False)
 
 
+def create_greenhouse_pilot_definitions(
+    tenants: list[GreenhouseTenantConfig] | tuple[GreenhouseTenantConfig, ...],
+    *,
+    source_overrides: Mapping[str, JobSource] | None = None,
+) -> list[SourceDefinition]:
+    """Cria no máximo cinco definições tenant-scoped, sem persistir config."""
+
+    if len(tenants) > MAX_GREENHOUSE_PILOT_TENANTS:
+        raise ValueError("Greenhouse pilot supports at most 5 tenants")
+    overrides = dict(source_overrides or {})
+    definitions: list[SourceDefinition] = []
+    for tenant in tenants:
+        source_id = f"greenhouse:{tenant.company_key}"
+
+        def source_factory(
+            config: GreenhouseTenantConfig = tenant,
+            definition_id: str = source_id,
+        ) -> JobSource:
+            override = overrides.get(definition_id)
+            if override is not None:
+                return override
+            return GreenhouseJobSource(config.board_token, config.company_name)
+
+        definitions.append(
+            SourceDefinition(
+                source_id=source_id,
+                display_name=f"Greenhouse — {tenant.company_name.strip()}",
+                source_type=SourceType.TENANT_BOARD,
+                source_family="greenhouse",
+                source_instance=source_id,
+                capabilities=SourceCapabilities(
+                    tenant_scoped=True,
+                    supports_query=False,
+                    provides_description=True,
+                    provides_posted_date=False,
+                    provides_external_id=True,
+                    provides_direct_url=True,
+                    lifecycle_authority=LifecycleAuthority.AUTHORITATIVE,
+                    requires_auth=False,
+                    requires_attribution=False,
+                ),
+                source_factory=source_factory,
+                adapter_factory=lambda company=tenant.company_name: GreenhouseJobAdapter(company),
+                default_config={
+                    "company_key": tenant.company_key,
+                    "company_name": tenant.company_name.strip(),
+                    "board_token": tenant.board_token.strip(),
+                },
+                enabled=tenant.enabled,
+                priority=tenant.priority,
+                request_budget=1,
+            )
+        )
+    return definitions
+
+
 def create_default_source_registry(
     *,
     jobicy_config: Mapping[str, object] | None = None,
@@ -134,6 +220,8 @@ def create_default_source_registry(
     jobicy_source: JobSource | None = None,
     remotive_source: JobSource | None = None,
     wwr_source: JobSource | None = None,
+    greenhouse_tenants: tuple[GreenhouseTenantConfig, ...] = (),
+    greenhouse_sources: Mapping[str, JobSource] | None = None,
 ) -> SourceRegistry:
     """Registra as três fontes operacionais na ordem determinística."""
 
@@ -145,7 +233,7 @@ def create_default_source_registry(
         "category": "sales", "company_name": None, "search": None, "limit": None,
         **dict(remotive_config or {}),
     }
-    return SourceRegistry([
+    definitions = [
         SourceDefinition(
             source_id="jobicy", display_name="Jobicy",
             source_type=SourceType.GLOBAL_BOARD, source_family="jobicy",
@@ -203,4 +291,10 @@ def create_default_source_registry(
             default_config={"feed_url": WWR_SALES_MARKETING_RSS_URL},
             request_budget=1,
         ),
-    ])
+    ]
+    definitions.extend(
+        create_greenhouse_pilot_definitions(
+            greenhouse_tenants, source_overrides=greenhouse_sources
+        )
+    )
+    return SourceRegistry(definitions)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timezone
 from enum import Enum
 import json
@@ -773,11 +773,26 @@ class JobRepository:
             return SyncedOpportunity(internal_id, SyncStatus.NEW, job)
 
         automatic = self._automatic_values(item)
+        primary_observation = next(
+            (
+                observation
+                for observation in self.get_observations(int(existing["id"]))
+                if observation.source_instance == existing["source_instance"]
+            ),
+            None,
+        )
+        promote_authoritative = (
+            job.lifecycle_authority == "AUTHORITATIVE"
+            and (
+                primary_observation is None
+                or primary_observation.lifecycle_authority != "AUTHORITATIVE"
+            )
+        )
         same_primary_source = (
             not existing["source_instance"]
             or existing["source_instance"] == job.source_instance
         )
-        changed = same_primary_source and any(
+        changed = (same_primary_source or promote_authoritative) and any(
             existing[column] != automatic[column] for column in _AUTOMATIC_COLUMNS
         )
         updates: dict[str, object] = {
@@ -855,6 +870,16 @@ class JobRepository:
                 self.connection.execute(f"SAVEPOINT {savepoint}")
                 try:
                     previous = self.get_observations(opportunity_id)
+                    primary_item = primary_items.get(id(duplicate.primary))
+                    if primary_item is not None:
+                        self._sync_one(
+                            replace(
+                                primary_item,
+                                original_job=duplicate.duplicate,
+                                normalized_job=duplicate.duplicate,
+                            ),
+                            timestamp,
+                        )
                     observation_id, created = self._upsert_observation(
                         opportunity_id, duplicate.duplicate, timestamp
                     )

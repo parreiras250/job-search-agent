@@ -277,6 +277,18 @@ User-Agent e transforma erros HTTP, conexão, timeout e JSON inválido em
 uma responsabilidade diferente de validar e padronizar cada vaga. O pipeline
 continua conhecendo apenas `JobOpportunity` e não contém código do Greenhouse.
 
+Na Etapa 13E, Greenhouse também pode participar do discovery genérico como um
+piloto Direct ATS explicitamente configurado. A configuração é manual, em código
+ou teste, e aceita no máximo cinco empresas; não há Company Registry nem
+descoberta automática de boards. Cada empresa é uma source independente
+`greenhouse:<company_key>`, com orçamento de uma requisição, health isolado e
+observações `AUTHORITATIVE`. Um tenant com falha não bloqueia os demais.
+
+Quando a mesma vaga já foi observada em uma fonte ampla, o dedup mantém uma só
+oportunidade e todas as URLs observadas. A observação Greenhouse autoritativa
+pode assumir os dados automáticos primários e sua URL oficial sem trocar o ID
+interno, `first_seen_at`, histórico ou campos manuais do CRM.
+
 A listagem pública fornece título, URL, localização e, com `content=true`, o
 conteúdo da descrição. Ela não fornece de forma estruturada e consistente
 remoto, elegibilidade para o Brasil, salário, experiência, ferramentas ou
@@ -1394,9 +1406,9 @@ PYTHONPATH=src python3 -m daniel_job_agent.provenance_demo
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- O registry operacional contém Jobicy, Remotive e We Work Remotely; os
-  componentes isolados de Greenhouse e Lever não fazem parte do discovery
-  semanal genérico.
+- O registry operacional contém Jobicy, Remotive e We Work Remotely por padrão.
+  Greenhouse só entra no discovery genérico quando tenants do piloto são
+  configurados explicitamente (máximo de cinco); Lever permanece isolado.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as
   respostas de listagem não o fornecem de forma confiável.
 - Lever suporta apenas as bases global e EU documentadas; não há seleção

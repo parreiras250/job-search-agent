@@ -30,7 +30,7 @@ class SheetColumn:
 GOOGLE_SHEET_COLUMNS = (
     SheetColumn("company", "Company"),
     SheetColumn("role", "Role"),
-    SheetColumn("match_score", "Match Score"),
+    SheetColumn("match_score", "Career Fit"),
     SheetColumn("retention_decision", "Decision"),
     SheetColumn("application_status", "Application Status"),
     SheetColumn("next_step", "Next Step"),
@@ -52,6 +52,10 @@ GOOGLE_SHEET_COLUMNS = (
     SheetColumn("unknowns", "Unknowns"),
     SheetColumn("role_family", "Role Family"),
     SheetColumn("seniority", "Seniority"),
+    SheetColumn("eligibility", "Eligibility"),
+    SheetColumn("timezone_compatibility", "Timezone Fit"),
+    SheetColumn("opportunity_risks", "Opportunity Risk"),
+    SheetColumn("decision_reasons", "Decision Reason"),
     SheetColumn("salary_min", "Salary Min"),
     SheetColumn("salary_max", "Salary Max"),
     SheetColumn("salary_currency", "Salary Currency"),
@@ -150,8 +154,11 @@ def record_to_sheet_row(record: CRMRecord) -> list[object]:
             value = value.value
         elif isinstance(value, (date, datetime)):
             value = value.isoformat()
-        elif isinstance(value, list):
-            value = " | ".join(value)
+        elif isinstance(value, (list, tuple)):
+            value = " | ".join(
+                item.value if isinstance(item, Enum) else str(item)
+                for item in value
+            )
         row.append(value)
     return row
 
@@ -367,7 +374,14 @@ def ensure_sheet_tab(service: Any, config: GoogleSheetsConfig) -> int:
 def _format_requests(
     sheet_id: int, row_count: int, conditional_rule_count: int = 0
 ) -> list[dict[str, object]]:
-    wrap_columns = (7, 19, 20, 21)  # Notes, reasons, gaps and unknowns (zero-based).
+    wrap_fields = {
+        "notes", "positive_reasons", "potential_gaps", "unknowns",
+        "decision_reasons",
+    }
+    wrap_columns = tuple(
+        index for index, column in enumerate(GOOGLE_SHEET_COLUMNS)
+        if column.field in wrap_fields
+    )
     requests: list[dict[str, object]] = [
         {
             "deleteConditionalFormatRule": {
@@ -594,7 +608,7 @@ def read_sheet_values(service: Any, config: GoogleSheetsConfig) -> list[list[obj
         .values()
         .get(
             spreadsheetId=config.spreadsheet_id,
-            range=f"'{escaped_name}'!A:AG",
+            range=f"'{escaped_name}'!A:ZZ",
             majorDimension="ROWS",
         )
         .execute()

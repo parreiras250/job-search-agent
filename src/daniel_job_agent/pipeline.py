@@ -5,10 +5,12 @@ from typing import Iterable
 
 from .models import CandidateProfile, JobOpportunity, RoleFamily, Seniority
 from .rules import (
+    EligibilityStatus,
     MatchEvaluation,
     RetentionDecision,
+    OpportunityRisk,
+    TimezoneCompatibility,
     are_probably_duplicates,
-    decide_retention,
     evaluate_match,
     normalize_company,
     normalize_location,
@@ -37,6 +39,10 @@ class ProcessedOpportunity:
     retention_decision: RetentionDecision
     role_family: RoleFamily
     seniority: Seniority
+    eligibility: EligibilityStatus
+    timezone_compatibility: TimezoneCompatibility
+    opportunity_risks: tuple[OpportunityRisk, ...]
+    decision_reasons: list[str]
     rank: int | None = None
 
 
@@ -144,7 +150,7 @@ def process_opportunities(
     processed: list[ProcessedOpportunity] = []
     for original, normalized in zip(unique_originals, unique_normalized):
         evaluation: MatchEvaluation = evaluate_match(normalized, profile)
-        decision = decide_retention(normalized, profile)
+        decision = evaluation.retention_decision
         processed.append(
             ProcessedOpportunity(
                 original_job=original,
@@ -156,6 +162,10 @@ def process_opportunities(
                 retention_decision=decision,
                 role_family=evaluation.role_family,
                 seniority=evaluation.seniority,
+                eligibility=evaluation.eligibility,
+                timezone_compatibility=evaluation.timezone_compatibility,
+                opportunity_risks=evaluation.opportunity_risks,
+                decision_reasons=evaluation.decision_reasons,
             )
         )
 

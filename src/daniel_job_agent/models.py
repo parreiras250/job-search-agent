@@ -294,7 +294,7 @@ class JobOpportunity:
             fields = ", ".join(empty_fields)
             raise ValueError(f"Required text fields cannot be empty: {fields}")
 
-        # O Match Score, quando conhecido, deve ficar entre 0 e 100.
+        # Career Fit (campo histórico match_score), quando conhecido, fica entre 0 e 100.
         if self.match_score is not None and not 0 <= self.match_score <= 100:
             raise ValueError("match_score must be between 0 and 100")
 

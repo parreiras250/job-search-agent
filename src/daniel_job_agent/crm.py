@@ -7,7 +7,12 @@ from typing import TypeAlias
 
 from .models import ApplicationStatus, JobLifecycleStatus, RoleFamily, Seniority
 from .repository import JobRepository, StoredOpportunity
-from .rules import RetentionDecision
+from .rules import (
+    EligibilityStatus,
+    OpportunityRisk,
+    RetentionDecision,
+    TimezoneCompatibility,
+)
 
 
 AUTOMATIC_FIELDS = (
@@ -37,6 +42,10 @@ AUTOMATIC_FIELDS = (
     "positive_reasons",
     "potential_gaps",
     "unknowns",
+    "eligibility",
+    "timezone_compatibility",
+    "opportunity_risks",
+    "decision_reasons",
     "salary_min",
     "salary_max",
     "salary_currency",
@@ -87,6 +96,10 @@ CRM_COLUMNS = (
     "unknowns",
     "role_family",
     "seniority",
+    "eligibility",
+    "timezone_compatibility",
+    "opportunity_risks",
+    "decision_reasons",
     "salary_min",
     "salary_max",
     "salary_currency",
@@ -137,6 +150,10 @@ class CRMRecord:
     positive_reasons: list[str]
     potential_gaps: list[str]
     unknowns: list[str]
+    eligibility: EligibilityStatus
+    timezone_compatibility: TimezoneCompatibility
+    opportunity_risks: tuple[OpportunityRisk, ...]
+    decision_reasons: list[str]
     salary_min: float | None
     salary_max: float | None
     salary_currency: str | None
@@ -190,6 +207,10 @@ def _record_from_stored(
         positive_reasons=list(stored.positive_reasons),
         potential_gaps=list(stored.potential_gaps),
         unknowns=list(stored.unknowns),
+        eligibility=stored.eligibility,
+        timezone_compatibility=stored.timezone_compatibility,
+        opportunity_risks=stored.opportunity_risks,
+        decision_reasons=list(stored.decision_reasons),
         salary_min=job.salary_min,
         salary_max=job.salary_max,
         salary_currency=job.salary_currency,

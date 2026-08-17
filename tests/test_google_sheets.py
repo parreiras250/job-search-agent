@@ -172,9 +172,9 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
 
     def test_visual_contract_has_31_friendly_columns_and_id_last(self) -> None:
         headers = [column.header for column in GOOGLE_SHEET_COLUMNS]
-        self.assertEqual(len(headers), 34)
+        self.assertEqual(len(headers), 38)
         self.assertEqual(headers[:5], [
-            "Company", "Role", "Match Score", "Decision", "Application Status"
+            "Company", "Role", "Career Fit", "Decision", "Application Status"
         ])
         self.assertEqual(headers[-1], "Internal ID")
         self.assertNotIn("match_score", headers)
@@ -184,7 +184,11 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
         self.assertEqual(set(MANUAL_SHEET_HEADERS) | set(AUTOMATIC_SHEET_HEADERS), headers)
         self.assertEqual(set(MANUAL_SHEET_HEADERS) & set(AUTOMATIC_SHEET_HEADERS), set())
         self.assertIn("Notes", MANUAL_SHEET_HEADERS)
-        self.assertIn("Match Score", AUTOMATIC_SHEET_HEADERS)
+        self.assertIn("Career Fit", AUTOMATIC_SHEET_HEADERS)
+        self.assertIn("Eligibility", AUTOMATIC_SHEET_HEADERS)
+        self.assertIn("Timezone Fit", AUTOMATIC_SHEET_HEADERS)
+        self.assertIn("Opportunity Risk", AUTOMATIC_SHEET_HEADERS)
+        self.assertIn("Decision Reason", AUTOMATIC_SHEET_HEADERS)
         self.assertIn("Lifecycle Status", AUTOMATIC_SHEET_HEADERS)
         self.assertIn("Closed At", AUTOMATIC_SHEET_HEADERS)
         self.assertIn("Observed Sources", AUTOMATIC_SHEET_HEADERS)
@@ -203,7 +207,7 @@ class GoogleSheetsPayloadTests(unittest.TestCase):
         )
         self.assertEqual(row[-1], record.internal_id)
         self.assertIsInstance(row[fields.index("positive_reasons")], str)
-        self.assertEqual(len(row), 34)
+        self.assertEqual(len(row), 38)
 
     def test_sheet_values_preserve_crm_default_order_and_headers(self) -> None:
         records = self.crm.list_records()
@@ -238,7 +242,7 @@ class GoogleSheetsPushTests(unittest.TestCase):
         self.assertEqual(payload[0][0], "Company")
         self.assertEqual(len(payload), 2)
         self.assertTrue(result.success)
-        self.assertEqual((result.rows_written, result.columns_written), (1, 34))
+        self.assertEqual((result.rows_written, result.columns_written), (1, 38))
         self.assertIsNone(result.error)
 
     def test_existing_tab_is_not_created_again_and_formatting_is_batched(self) -> None:
@@ -443,8 +447,12 @@ class GoogleSheetsPullTests(unittest.TestCase):
     def test_automatic_sheet_edits_are_ignored(self) -> None:
         values = self.values()
         internal_id = int(values[1][-1])
+        original = self.crm.get(internal_id)
+        assert original is not None
         self.set_cell(values, 1, "Company", "Malicious overwrite")
-        self.set_cell(values, 1, "Match Score", 0)
+        self.set_cell(values, 1, "Career Fit", 0)
+        self.set_cell(values, 1, "Eligibility", "INELIGIBLE")
+        self.set_cell(values, 1, "Opportunity Risk", "COMMISSION_ONLY")
         self.set_cell(values, 1, "Lifecycle Status", "CLOSED")
         self.set_cell(values, 1, "Closed At", "2026-08-20T00:00:00+00:00")
         original_sources = self.crm.get(internal_id).observed_sources  # type: ignore[union-attr]
@@ -456,6 +464,8 @@ class GoogleSheetsPullTests(unittest.TestCase):
         self.assertEqual(result.rows_unchanged, 2)
         self.assertNotEqual(record.company, "Malicious overwrite")
         self.assertNotEqual(record.match_score, 0)
+        self.assertEqual(record.eligibility, original.eligibility)
+        self.assertEqual(record.opportunity_risks, original.opportunity_risks)
         self.assertNotEqual(record.lifecycle_status.value, "CLOSED")
         self.assertIsNone(record.closed_at)
         self.assertEqual(record.observed_sources, original_sources)

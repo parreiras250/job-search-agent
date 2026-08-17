@@ -162,11 +162,11 @@ class WeWorkRemotelyAdapterTests(unittest.TestCase):
             if item.normalized_job.role == "Sales Development Representative"
         )
         self.assertEqual(sdr.retention_decision.value, "KEEP")
-        self.assertEqual(account.retention_decision.value, "REVIEW")
+        self.assertEqual(account.retention_decision.value, "KEEP")
         self.assertEqual(engineer.retention_decision.value, "REJECT")
         self.assertEqual(
             evaluate_geographic_eligibility(account.normalized_job.location),
-            GeographicEligibility.UNKNOWN,
+            GeographicEligibility.ELIGIBLE,
         )
 
 

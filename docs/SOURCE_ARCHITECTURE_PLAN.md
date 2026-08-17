@@ -1,6 +1,6 @@
 # Source Architecture Plan
 
-Status: Etapas 13A–13F and 13G.1–13G.3 implemented. Jobicy, Remotive, We Work
+Status: Etapas 13A–13F and 13G.1–13G.4 implemented. Jobicy, Remotive, We Work
 Remotely, Himalayas and RemoteOK are registered as real global operational sources;
 Greenhouse tenants are generated from the persistent Company Registry.
 
@@ -208,7 +208,8 @@ SQLite-backed enable/disable should come only after the contract is proven.
 ## Company registry (implemented in 13F)
 
 SQLite introduced this local operational state in schema version 6. The current
-schema is version 7 after adding structured Himalayas restrictions. The implemented
+schema reached version 7 after adding structured Himalayas restrictions and is
+version 8 after ranking calibration. The implemented
 record is intentionally compact and generic:
 
 ```text
@@ -442,6 +443,26 @@ observational for lifecycle. Structured positive salaries are preserved; the
 feed's zero salary placeholders remain UNKNOWN. Missing location becomes the
 non-geographic value `Remote`, never `Worldwide`, and Brazil eligibility remains
 UNKNOWN. No RemoteOK-specific scoring rule was added.
+
+### 13G.4 — Ranking quality calibration (implemented)
+
+Ranking now exposes four source-independent axes. Career Fit is the existing
+single numeric field, recalibrated to contain only professional compatibility:
+title-derived role family, seniority, experience, tools, industries and explicit
+commercial experience. Eligibility is a five-state geographic assessment;
+structured location restrictions take precedence and missing evidence remains
+UNCERTAIN. Timezone Compatibility is HIGH, REASONABLE, LOW or UNKNOWN and is a
+soft gate: LOW normally sends an otherwise eligible role to REVIEW, never a
+geographic REJECT. Opportunity Quality detects only strong evidence of
+commission-only, no-base or unpaid work.
+
+Final Decision is a rule composition rather than another hidden numeric score.
+Explicit non-target roles, INELIGIBLE geography and hard compensation risks are
+REJECT. Strong/relevant career fit with supported geography is KEEP unless a low
+timezone requires REVIEW. Unknown geography is REVIEW. SQLite schema version 8
+persists the axes and deterministic decision reasons without changing lifecycle,
+provenance or manual CRM fields. KEEP + REVIEW remains the operational relevant
+metric, whose usefulness depends on this calibration.
 
 ### 13H — Lifecycle authority
 

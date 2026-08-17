@@ -21,7 +21,15 @@ from .models import (
     Seniority,
 )
 from .pipeline import PipelineResult, ProcessedOpportunity
-from .rules import RetentionDecision, normalize_company, normalize_job_url, normalize_role
+from .rules import (
+    EligibilityStatus,
+    OpportunityRisk,
+    RetentionDecision,
+    TimezoneCompatibility,
+    normalize_company,
+    normalize_job_url,
+    normalize_role,
+)
 
 
 DEFAULT_DATABASE_PATH = Path("data/job_agent.db")
@@ -50,6 +58,10 @@ class StoredOpportunity:
     positive_reasons: list[str]
     potential_gaps: list[str]
     unknowns: list[str]
+    eligibility: EligibilityStatus
+    timezone_compatibility: TimezoneCompatibility
+    opportunity_risks: tuple[OpportunityRisk, ...]
+    decision_reasons: list[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,10 +130,11 @@ _AUTOMATIC_COLUMNS = (
     "location_restrictions", "timezone_restrictions",
     "date_posted", "match_score", "retention_decision",
     "role_family", "seniority", "positive_reasons", "potential_gaps",
-    "unknowns",
+    "unknowns", "eligibility", "timezone_compatibility",
+    "opportunity_risks", "decision_reasons",
 )
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,6 +279,10 @@ class JobRepository:
                 positive_reasons TEXT NOT NULL,
                 potential_gaps TEXT NOT NULL,
                 unknowns TEXT NOT NULL,
+                eligibility TEXT NOT NULL DEFAULT 'UNCERTAIN',
+                timezone_compatibility TEXT NOT NULL DEFAULT 'UNKNOWN',
+                opportunity_risks TEXT NOT NULL DEFAULT '[]',
+                decision_reasons TEXT NOT NULL DEFAULT '[]',
                 still_open INTEGER,
                 application_status TEXT NOT NULL,
                 applied_date TEXT,
@@ -390,6 +407,10 @@ class JobRepository:
             "source_instance": "TEXT",
             "location_restrictions": "TEXT",
             "timezone_restrictions": "TEXT",
+            "eligibility": "TEXT NOT NULL DEFAULT 'UNCERTAIN'",
+            "timezone_compatibility": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+            "opportunity_risks": "TEXT NOT NULL DEFAULT '[]'",
+            "decision_reasons": "TEXT NOT NULL DEFAULT '[]'",
         }
         for name, definition in additions.items():
             if name not in columns:
@@ -963,6 +984,12 @@ class JobRepository:
             "positive_reasons": _dump(item.positive_reasons),
             "potential_gaps": _dump(item.potential_gaps),
             "unknowns": _dump(item.unknowns),
+            "eligibility": item.eligibility.value,
+            "timezone_compatibility": item.timezone_compatibility.value,
+            "opportunity_risks": _dump(
+                [risk.value for risk in item.opportunity_risks]
+            ),
+            "decision_reasons": _dump(item.decision_reasons),
         }
 
     def _insert(self, item: ProcessedOpportunity, now: datetime) -> int:
@@ -1271,6 +1298,10 @@ class JobRepository:
         positive_reasons = json.loads(row["positive_reasons"])
         potential_gaps = json.loads(row["potential_gaps"])
         unknowns = json.loads(row["unknowns"])
+        opportunity_risks = tuple(
+            OpportunityRisk(value) for value in json.loads(row["opportunity_risks"])
+        )
+        decision_reasons = json.loads(row["decision_reasons"])
         tracking = ApplicationTracking(
             application_status=ApplicationStatus(row["application_status"]),
             applied_date=date.fromisoformat(row["applied_date"]) if row["applied_date"] else None,
@@ -1329,6 +1360,12 @@ class JobRepository:
             role_family=RoleFamily(row["role_family"]), seniority=Seniority(row["seniority"]),
             positive_reasons=positive_reasons,
             potential_gaps=potential_gaps, unknowns=unknowns,
+            eligibility=EligibilityStatus(row["eligibility"]),
+            timezone_compatibility=TimezoneCompatibility(
+                row["timezone_compatibility"]
+            ),
+            opportunity_risks=opportunity_risks,
+            decision_reasons=decision_reasons,
         )
 
 

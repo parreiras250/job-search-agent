@@ -698,15 +698,15 @@ de frases ambíguas. Ausência de informação não vira `False`, gap ou rejeiç
 
 ## Role Family, Seniority e Career Fit
 
-A avaliação com `CandidateProfile` agora separa três conceitos antes de calcular
-o Match Score:
+A avaliação com `CandidateProfile` separa os sinais antes da decisão:
 
 ```text
 Role
 → Role Family
 → Seniority
 → Candidate Career Fit
-→ Match Score
+→ Eligibility + Timezone Compatibility + Opportunity Quality
+→ Final Decision
 ```
 
 `RoleFamily` agrupa títulos em famílias expansíveis, como `CLOSING_SALES`,
@@ -731,8 +731,8 @@ Management, Sales Development, Customer Success e Partnerships são relevantes;
 Sales Leadership e Pre-Sales são stretch. As demais famílias explicitamente
 configuradas ficam fora do foco.
 
-Role Family é um sinal forte: os pesos padrão são `+65` para a família principal,
-`+45` para relevante, `+25` para stretch, `+5` para desconhecida e `-70` para
+Role Family é um sinal forte: os pesos padrão são `90` para a família principal,
+`65` para relevante, `45` para stretch, `15` para desconhecida e `0` para
 fora do foco. Esse bloco substitui os antigos pontos de keyword no cálculo com
 perfil, evitando double counting. O cálculo legado sem perfil permanece igual.
 
@@ -1077,7 +1077,7 @@ cria uma spreadsheet nova. A linha de headers fica congelada e em negrito; a
 região recebe filtro e ajuste de colunas; Notes, Reasons, Gaps e Unknowns usam
 quebra de texto. A URL é enviada como texto puro.
 
-O Match Score recebe cinco faixas visuais: verde forte para 90–100, verde suave
+Career Fit recebe cinco faixas visuais: verde forte para 90–100, verde suave
 para 75–89, amarelo para 60–74, laranja para 40–59 e vermelho claro para 0–39.
 Decision usa verde para KEEP, amarelo para REVIEW e vermelho claro para REJECT.
 Application Status possui dropdown com exatamente os valores de
@@ -1110,12 +1110,13 @@ Fluxo cotidiano recomendado:
 5. Faça `pull`.
 6. O SQLite recebe somente os campos manuais validados.
 
-A ordem visual possui 33 colunas: Company, Role, Match Score, Decision,
+A ordem visual possui 38 colunas: Company, Role, Career Fit, Decision,
 Application Status, Next Step, Next Step Date, Notes, Location, Source, Job URL,
 Applied Date, Recruiter Name, Recruiter Email, Date Found, Date Posted, Still
 Open, Lifecycle Status, Closed At, Positive Reasons, Potential Gaps, Unknowns,
-Role Family, Seniority, Salary Min, Salary Max, Salary Currency, Salary Period,
-Salary Text, First Seen, Last Seen, Last Checked e Internal ID. Lifecycle e
+Role Family, Seniority, Eligibility, Timezone Fit, Opportunity Risk, Decision
+Reason, Salary Min, Salary Max, Salary Currency, Salary Period, Salary Text,
+First Seen, Last Seen, Last Checked, Observed Sources e Internal ID. Lifecycle e
 Closed At são automáticos; o ID fica no final.
 
 ## Ciclo de vida das vagas
@@ -1375,18 +1376,17 @@ Para cada vaga fornecida localmente ao Python:
 
 1. Empresa, cargo e localização podem ter espaços corrigidos sem alterar
    agressivamente os nomes.
-2. O cargo recebe prioridade `HIGH`, `MEDIUM` ou `IRRELEVANT`.
-3. A localização recebe elegibilidade `ELIGIBLE`, `NOT_ELIGIBLE` ou `UNKNOWN`.
-4. Quando um perfil é fornecido, a vaga também é comparada aos cargos desejados,
-   anos de experiência, ferramentas e indústrias conhecidas.
-5. O Match Score soma pesos documentados para os sinais disponíveis. O resultado
-   sempre fica entre 0 e 100.
-6. A avaliação apresenta razões positivas, possíveis gaps e informações
-   desconhecidas.
-7. A decisão final é:
-   - `KEEP`: cargo relevante, localização elegível e bom score;
-   - `REVIEW`: faltam informações ou o título ainda não é reconhecido;
-   - `REJECT`: cargo explicitamente irrelevante ou localização incompatível.
+2. Role Family e Seniority vêm principalmente do título.
+3. Career Fit, entre 0 e 100, mede somente compatibilidade profissional.
+4. Eligibility usa cinco estados, de `ELIGIBLE` a `INELIGIBLE`; restrições
+   estruturadas prevalecem e ausência de evidência vira `UNCERTAIN`.
+5. Timezone Fit é separado da geografia e pode ser `HIGH`, `REASONABLE`, `LOW`
+   ou `UNKNOWN`.
+6. Opportunity Risk detecta somente evidência forte de commission-only,
+   ausência de salário base ou trabalho não remunerado.
+7. A decisão final aplica hard gates visíveis: role mismatch, geografia
+   incompatível e riscos fortes geram REJECT; eligibility desconhecida ou
+   timezone baixo geram REVIEW; fit relevante e geografia confirmada geram KEEP.
 
 A deduplicação considera duas vagas iguais quando a URL normalizada coincide ou
 quando empresa e cargo normalizados coincidem. Parâmetros de rastreamento da URL
@@ -1407,14 +1407,16 @@ compensação quando conhecidas.
 desconhecidos porque ainda não existe uma representação completa de moeda e
 período. Nenhuma informação pessoal desnecessária é armazenada.
 
-## Match Score e explicabilidade
+## Career Fit e explicabilidade
 
 `evaluate_match(job, profile)` retorna um `MatchEvaluation` com:
 
-- `score`: número determinístico entre 0 e 100;
+- `score`: Career Fit determinístico entre 0 e 100;
 - `positive_reasons`: sinais de boa aderência encontrados;
 - `potential_gaps`: diferenças que merecem atenção, mas não eliminam a vaga;
-- `unknowns`: informações que a vaga ou o perfil não fornecem.
+- `unknowns`: informações que a vaga ou o perfil não fornecem;
+- `eligibility`, `timezone_compatibility` e `opportunity_risks`: eixos separados;
+- `decision_reasons` e `retention_decision`: conclusão determinística explicável.
 
 Informação ausente não reduz o score. Por exemplo, uma vaga que não informa as
 ferramentas utilizadas recebe um `unknown`, não uma penalização por ferramentas.
@@ -1426,9 +1428,9 @@ da etapa anterior. Para comparar com o perfil, use
 
 ## Hard filters e soft signals
 
-Hard filters representam incompatibilidades objetivas. Nesta etapa são poucos:
-localização explicitamente incompatível com Brasil/LATAM e cargo explicitamente
-fora do objetivo comercial. Eles podem resultar em `REJECT`.
+Hard filters representam incompatibilidades objetivas: localização explicitamente
+incompatível, cargo claramente fora do objetivo e commission-only/no-base/unpaid.
+Eles resultam em `REJECT` sem reduzir artificialmente o Career Fit.
 
 Soft signals ajudam a priorizar sem eliminar automaticamente. Cargo secundário,
 anos de experiência, ferramentas, indústria e experiências comerciais
@@ -1499,6 +1501,21 @@ manual real:
 ```bash
 PYTHONPATH=src python3 -m daniel_job_agent.remoteok_demo
 ```
+
+Calibração totalmente offline:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.ranking_calibration_demo
+```
+
+Validação real controlada das cinco fontes, para execução manual:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.ranking_validation_demo
+```
+
+`KEEP + REVIEW` continua sendo a métrica operacional de relevância por source,
+mas sua qualidade depende da calibração de Career Fit e dos hard gates.
 
 - A lista de cargos reconhecidos é intencionalmente pequena. Famílias claramente
   técnicas ou não comerciais, como engenharia, produto, jurídico, RH e pesquisa,

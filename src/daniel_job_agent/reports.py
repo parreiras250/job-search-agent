@@ -51,6 +51,10 @@ class ReportOpportunity:
     source: str
     job_url: str
     salary: str | None = None
+    eligibility: str = "UNCERTAIN"
+    timezone_compatibility: str = "UNKNOWN"
+    opportunity_risks: tuple[str, ...] = ()
+    decision_reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +134,12 @@ def _opportunity_from_processed(item: object) -> ReportOpportunity:
         seniority=getattr(item, "seniority").value,
         location=job.location, source=job.source, job_url=job.job_url,
         salary=_salary(job),
+        eligibility=getattr(item, "eligibility").value,
+        timezone_compatibility=getattr(item, "timezone_compatibility").value,
+        opportunity_risks=tuple(
+            risk.value for risk in getattr(item, "opportunity_risks")
+        ),
+        decision_reasons=tuple(getattr(item, "decision_reasons")),
     )
 
 
@@ -142,6 +152,12 @@ def _opportunity_from_stored(stored: object) -> ReportOpportunity:
         seniority=getattr(stored, "seniority").value,
         location=job.location, source=job.source, job_url=job.job_url,
         salary=_salary(job),
+        eligibility=getattr(stored, "eligibility").value,
+        timezone_compatibility=getattr(stored, "timezone_compatibility").value,
+        opportunity_risks=tuple(
+            risk.value for risk in getattr(stored, "opportunity_risks")
+        ),
+        decision_reasons=tuple(getattr(stored, "decision_reasons")),
     )
 
 
@@ -276,12 +292,17 @@ def build_weekly_report(
 def _opportunity_lines(item: ReportOpportunity) -> list[str]:
     lines = [
         f"- **{item.company} — {item.role}**",
-        f"  - Score: {item.score} | Decision: {item.decision}",
+        f"  - Career Fit: {item.score} | Decision: {item.decision}",
         f"  - Role family: {item.role_family} | Seniority: {item.seniority}",
+        f"  - Eligibility: {item.eligibility} | Timezone: {item.timezone_compatibility}",
         f"  - Location: {item.location} | Source: {item.source}",
     ]
     if item.salary:
         lines.append(f"  - Salary: {item.salary}")
+    if item.opportunity_risks:
+        lines.append(f"  - Risk: {' | '.join(item.opportunity_risks)}")
+    if item.decision_reasons:
+        lines.append(f"  - Decision reason: {' | '.join(item.decision_reasons)}")
     lines.append(f"  - URL: {_safe_text(item.job_url, limit=500)}")
     return lines
 

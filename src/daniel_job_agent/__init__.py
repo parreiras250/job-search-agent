@@ -152,6 +152,13 @@ from .source_registry import (
     create_default_source_registry,
     create_greenhouse_pilot_definitions,
 )
+from .source_contribution import (
+    GLOBAL_SOURCE_ORDER,
+    HimalayasDelta,
+    SourceContribution,
+    SourceContributionResult,
+    measure_source_contributions,
+)
 from .sources import (
     GreenhouseJobSource,
     HimalayasJobSource,
@@ -199,6 +206,8 @@ __all__ = [
     "GreenhouseJobAdapter",
     "GreenhouseJobSource",
     "GreenhouseTenantConfig",
+    "GLOBAL_SOURCE_ORDER",
+    "HimalayasDelta",
     "HimalayasJobAdapter",
     "HimalayasJobSource",
     "IngestionError",
@@ -248,6 +257,8 @@ __all__ = [
     "ScoreWeights",
     "SearchStrategy",
     "SourceCapabilities",
+    "SourceContribution",
+    "SourceContributionResult",
     "SourceDefinition",
     "SourceQuery",
     "SourceRegistry",
@@ -313,6 +324,7 @@ __all__ = [
     "records_to_table",
     "record_to_sheet_row",
     "merge_manual_sheet_values",
+    "measure_source_contributions",
     "save_weekly_report",
     "sync_opportunities",
 ]

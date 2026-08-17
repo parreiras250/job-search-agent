@@ -12,6 +12,7 @@ from .agent import AgentRunResult
 from .crm import LocalCRM
 from .models import ApplicationStatus
 from .repository import AgentRunHistory, JobRepository
+from .source_contribution import HimalayasDelta, SourceContribution
 
 
 _SECRET_PATTERN = re.compile(
@@ -94,6 +95,8 @@ class WeeklyReport:
     companies_unsupported: int = 0
     companies_limited: int = 0
     company_top_failures: list[str] = field(default_factory=list)
+    source_contributions: list[SourceContribution] = field(default_factory=list)
+    himalayas_delta: HimalayasDelta | None = None
 
     @property
     def duration_seconds(self) -> float:
@@ -262,6 +265,11 @@ def build_weekly_report(
         companies_unsupported=companies.unsupported,
         companies_limited=companies.limited,
         company_top_failures=companies.top_failures,
+        source_contributions=[
+            agent_result.discovery.source_contributions.contributions[source_id]
+            for source_id in agent_result.discovery.source_contributions.operational_order
+        ],
+        himalayas_delta=agent_result.discovery.source_contributions.himalayas_delta,
     )
 
 
@@ -308,6 +316,31 @@ def format_weekly_report(report: WeeklyReport) -> str:
             f"- **{source.name}: {state}**{detail}",
             f"  - Received: {source.received} | Converted: {source.converted} | Warnings: {source.warnings} | Errors: {source.errors}",
         ])
+    lines.extend(["", "## Source contribution", ""])
+    if not report.source_contributions:
+        lines.append("Contribution details were not available.")
+    for contribution in report.source_contributions:
+        label = {
+            "jobicy": "Jobicy",
+            "remotive": "Remotive",
+            "weworkremotely": "We Work Remotely",
+            "himalayas": "Himalayas",
+        }.get(contribution.source_id, contribution.source_id)
+        if contribution.status != "SUCCESS":
+            lines.append(f"- **{label}: contribution unavailable (FAILED)**")
+            continue
+        lines.append(
+            f"- **{label}:** +{contribution.incremental_unique} unique | "
+            f"+{contribution.incremental_keep} KEEP | "
+            f"+{contribution.incremental_relevant} relevant"
+        )
+    if report.himalayas_delta is not None:
+        delta = report.himalayas_delta
+        lines.append(
+            "- Himalayas delta: "
+            f"{delta.baseline_unique} → {delta.expanded_unique} unique | "
+            f"+{delta.incremental_keep} KEEP | +{delta.incremental_relevant} relevant"
+        )
     lines.extend([
         "", "## Company monitoring", "",
         f"- Tracked companies: {report.companies_tracked}",

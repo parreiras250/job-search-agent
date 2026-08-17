@@ -7,6 +7,10 @@ from .ingestion import BatchIngestionResult, ingest_batch
 from .pipeline import PipelineResult, ProcessedOpportunity, process_opportunities
 from .models import CandidateProfile
 from .source_registry import SourceRegistry, create_default_source_registry
+from .source_contribution import (
+    SourceContributionResult,
+    measure_source_contributions,
+)
 from .sources import JobSource, SourceResult
 
 
@@ -74,6 +78,7 @@ class MultiSourceDiscoveryResult:
     ranking: list[ProcessedOpportunity]
     pipeline: PipelineResult
     source_executions_by_id: dict[str, SourceDiscoverySummary]
+    source_contributions: SourceContributionResult
 
 
 class MultiSourceDiscovery:
@@ -165,6 +170,9 @@ class MultiSourceDiscovery:
 
         enriched_jobs = enrich_opportunities(combined_jobs)
         pipeline = process_opportunities(enriched_jobs, profile)
+        source_contributions = measure_source_contributions(
+            pipeline, executions_by_id
+        )
         attempted = list(summaries)
         succeeded = [name for name, item in summaries.items() if item.succeeded]
         failed = [name for name, item in summaries.items() if not item.succeeded]
@@ -206,4 +214,5 @@ class MultiSourceDiscovery:
             ranking=pipeline.ranked_opportunities,
             pipeline=pipeline,
             source_executions_by_id=executions_by_id,
+            source_contributions=source_contributions,
         )

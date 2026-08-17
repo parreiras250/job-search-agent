@@ -1478,6 +1478,18 @@ Demonstração totalmente offline:
 PYTHONPATH=src python3 -m daniel_job_agent.provenance_demo
 ```
 
+### Contribuição incremental das fontes globais
+
+A medição da Etapa 13G.2 atribui cada opportunity deduplicada à primeira source
+que a observou na ordem fixa Jobicy, Remotive, We Work Remotely e Himalayas.
+Ela mostra unique, KEEP, REVIEW, REJECT, relevant (`KEEP + REVIEW`), overlap e
+eficiência por request sem alterar automaticamente nenhuma source. Greenhouse
+tenants não fazem parte dessa baseline. Para executar manualmente a medição real:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.source_efficiency_demo
+```
+
 - A lista de cargos reconhecidos é intencionalmente pequena. Famílias claramente
   técnicas ou não comerciais, como engenharia, produto, jurídico, RH e pesquisa,
   podem ser rejeitadas por padrões simples no título.

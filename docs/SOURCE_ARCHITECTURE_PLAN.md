@@ -1,7 +1,7 @@
 # Source Architecture Plan
 
-Status: Etapas 13A–13F, 13G.1 and 13G.2 implemented. Jobicy, Remotive, We Work
-Remotely and Himalayas are registered as real global operational sources;
+Status: Etapas 13A–13F and 13G.1–13G.3 implemented. Jobicy, Remotive, We Work
+Remotely, Himalayas and RemoteOK are registered as real global operational sources;
 Greenhouse tenants are generated from the persistent Company Registry.
 
 ## Etapa 13B implemented foundation
@@ -417,20 +417,31 @@ default broad strategy uses one request from each source.
 
 ### 13G.2 — Incremental source contribution (implemented)
 
-Measure the four global sources in the fixed operational order Jobicy,
-Remotive, We Work Remotely and Himalayas. A logical opportunity is credited as
+Measure the global sources in their fixed operational order. A logical opportunity is credited as
 incremental only to the first source in that order that observed its provenance
 group. KEEP plus REVIEW is the principal relevant metric; REJECT remains visible
 in unique and decision totals. Pairwise overlap and cross-source duplicates do
 not receive marginal credit.
 
 The explicit Himalayas comparison uses Jobicy + Remotive + WWR as the baseline
-and all four sources as expanded. Efficiency divides the single request used by
+and those four sources as expanded. Efficiency divides the single request used by
 incremental unique and incremental relevant counts; a zero denominator is N/A.
 A failed source has unavailable contribution rather than a false zero. These
 metrics are observational only: they do not change source enablement, request
 budgets, queries, scheduling or scoring. Greenhouse tenants are excluded from
-this global baseline. Arbeitnow, RemoteOK and Working Nomads remain out of scope.
+this global baseline. Arbeitnow and Working Nomads remain out of scope.
+
+### 13G.3 — RemoteOK global source (implemented)
+
+RemoteOK is the fifth global source, after Himalayas for marginal attribution.
+It performs one unfiltered GET to the official public JSON feed at
+`https://remoteok.com/api`; there is no pagination, retry or historical crawl.
+The source removes only the documented first metadata object identified by its
+`last_updated` and `legal` fields, retains RemoteOK URLs for attribution, and is
+observational for lifecycle. Structured positive salaries are preserved; the
+feed's zero salary placeholders remain UNKNOWN. Missing location becomes the
+non-geographic value `Remote`, never `Worldwide`, and Brazil eligibility remains
+UNKNOWN. No RemoteOK-specific scoring rule was added.
 
 ### 13H — Lifecycle authority
 

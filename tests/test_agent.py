@@ -104,6 +104,7 @@ class AgentEndToEndTests(unittest.TestCase):
             remotive_source=self.remotive,
             wwr_source=FakeSource(success([])),
             himalayas_source=FakeSource(success([])),
+            remoteok_source=FakeSource(success([])),
         )
 
     def tearDown(self) -> None:
@@ -119,7 +120,7 @@ class AgentEndToEndTests(unittest.TestCase):
     def test_complete_run_persists_keep_review_and_reject_as_new(self) -> None:
         result = self.make_agent().run()
         decisions = {item.retention_decision for item in result.discovery.ranking}
-        self.assertEqual(result.sources_succeeded, ["Jobicy", "Remotive", "We Work Remotely", "Himalayas"])
+        self.assertEqual(result.sources_succeeded, ["Jobicy", "Remotive", "We Work Remotely", "Himalayas", "RemoteOK"])
         self.assertEqual((result.jobs_received, result.jobs_converted), (3, 3))
         self.assertEqual((result.unique_opportunities, result.discovery_duplicates), (3, 0))
         self.assertEqual(decisions, set(RetentionDecision))
@@ -216,6 +217,7 @@ class AgentFailureIsolationTests(unittest.TestCase):
             remotive_source=FakeSource(remotive),
             wwr_source=FakeSource(success([])),
             himalayas_source=FakeSource(success([])),
+            remoteok_source=FakeSource(success([])),
         )
         return DanielJobAgent(repository, discovery=discovery).run()
 

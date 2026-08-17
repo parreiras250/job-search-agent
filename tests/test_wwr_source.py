@@ -189,16 +189,18 @@ class WeWorkRemotelyRegistryIntegrationTests(unittest.TestCase):
         remotive = StubSource(SourceResult(empty, []))
         wwr = StubSource(SourceResult(SourceStatus.CONNECTION_ERROR, [], "offline"))
         himalayas = StubSource(SourceResult(empty, []))
+        remoteok = StubSource(SourceResult(empty, []))
         output = MultiSourceDiscovery(
             jobicy_source=jobicy, remotive_source=remotive, wwr_source=wwr,
             himalayas_source=himalayas,
+            remoteok_source=remoteok,
         ).run(create_daniel_profile())
         self.assertEqual(
-            output.sources_attempted, ["Jobicy", "Remotive", "We Work Remotely", "Himalayas"]
+            output.sources_attempted, ["Jobicy", "Remotive", "We Work Remotely", "Himalayas", "RemoteOK"]
         )
-        self.assertEqual(output.sources_succeeded, ["Jobicy", "Remotive", "Himalayas"])
+        self.assertEqual(output.sources_succeeded, ["Jobicy", "Remotive", "Himalayas", "RemoteOK"])
         self.assertEqual(output.sources_failed, ["We Work Remotely"])
-        self.assertEqual([jobicy.calls, remotive.calls, wwr.calls, himalayas.calls], [1, 1, 1, 1])
+        self.assertEqual([jobicy.calls, remotive.calls, wwr.calls, himalayas.calls, remoteok.calls], [1, 1, 1, 1, 1])
 
     def test_cross_source_duplicate_uses_existing_global_dedup(self) -> None:
         source, _ = fixture_source()
@@ -216,6 +218,7 @@ class WeWorkRemotelyRegistryIntegrationTests(unittest.TestCase):
             remotive_source=StubSource(SourceResult(SourceStatus.NO_JOBS, [])),
             wwr_source=StubSource(wwr_result),
             himalayas_source=StubSource(SourceResult(SourceStatus.NO_JOBS, [])),
+            remoteok_source=StubSource(SourceResult(SourceStatus.NO_JOBS, [])),
         ).run(create_daniel_profile())
         self.assertGreaterEqual(output.global_duplicates, 1)
         self.assertGreaterEqual(output.cross_source_duplicates, 1)
@@ -231,6 +234,7 @@ class WeWorkRemotelyRegistryIntegrationTests(unittest.TestCase):
                     jobicy_source=StubSource(empty), remotive_source=StubSource(empty),
                     wwr_source=StubSource(wwr_result),
                     himalayas_source=StubSource(empty),
+                    remoteok_source=StubSource(empty),
                 ),
             ).run()
             timestamp = datetime(2026, 8, 16, tzinfo=timezone.utc)
@@ -245,11 +249,12 @@ class WeWorkRemotelyRegistryIntegrationTests(unittest.TestCase):
                     jobicy_source=StubSource(empty), remotive_source=StubSource(empty),
                     wwr_source=StubSource(empty),
                     himalayas_source=StubSource(empty),
+                    remoteok_source=StubSource(empty),
                 ),
             ).run()
         self.assertEqual(
             [item.name for item in report.sources],
-            ["Jobicy", "Remotive", "We Work Remotely", "Himalayas"],
+            ["Jobicy", "Remotive", "We Work Remotely", "Himalayas", "RemoteOK"],
         )
         self.assertEqual(report.sources[2].received, 5)
         self.assertEqual(second.lifecycle.misses_recorded, 5)

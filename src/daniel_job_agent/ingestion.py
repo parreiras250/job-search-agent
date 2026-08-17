@@ -534,6 +534,65 @@ class RemotiveJobAdapter(BaseJobAdapter):
         return super().adapt(mapped)
 
 
+class RemoteOKJobAdapter(BaseJobAdapter):
+    """Converte vagas do JSON feed oficial preservando attribution RemoteOK."""
+
+    source_name = "RemoteOK"
+    report_extended_optional_fields = True
+
+    def adapt(self, record: RawJobRecord) -> IngestionResult:
+        external_id = record.get("id")
+        if external_id is not None and not isinstance(external_id, str):
+            external_id = str(external_id)
+
+        tags = record.get("tags")
+        employment_type = None
+        if isinstance(tags, list):
+            normalized_tags = [
+                item.strip() for item in tags
+                if isinstance(item, str) and item.strip()
+            ]
+            for candidate in ("full time", "part time", "contract", "freelance"):
+                if candidate in {item.casefold() for item in normalized_tags}:
+                    employment_type = candidate
+                    break
+
+        location = record.get("location")
+        normalized_location = (
+            " ".join(location.split())
+            if isinstance(location, str) and location.strip()
+            else "Remote"
+        )
+
+        def salary(field_name: str) -> object:
+            value = record.get(field_name)
+            return None if value == 0 else value
+
+        mapped: dict[str, object] = {
+            "company": record.get("company"),
+            "role": record.get("position"),
+            "job_url": record.get("url") or record.get("apply_url"),
+            "location": normalized_location,
+            "description": record.get("description"),
+            "employment_type": employment_type,
+            "industries_mentioned": tags,
+            "date_posted": record.get("date"),
+            "salary_min": salary("salary_min"),
+            "salary_max": salary("salary_max"),
+            "external_id": external_id,
+            "remote": True,
+            "brazil_eligible": None,
+        }
+        result = super().adapt(mapped)
+        if result.opportunity is not None:
+            result.opportunity.location_restrictions = (
+                [LocationRestriction(None, normalized_location, None)]
+                if normalized_location != "Remote"
+                else None
+            )
+        return result
+
+
 class HimalayasJobAdapter(BaseJobAdapter):
     """Converte o schema público Himalayas sem interpretar timezone para score."""
 

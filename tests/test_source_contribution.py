@@ -1,4 +1,4 @@
-"""Testes offline das métricas incrementais das quatro fontes globais."""
+"""Testes offline das métricas incrementais das fontes globais."""
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -61,6 +61,7 @@ def successful_summaries() -> dict[str, Summary]:
         "remotive": Summary(1, 1),
         "weworkremotely": Summary(2, 2),
         "himalayas": Summary(5, 5),
+        "remoteok": Summary(0, 0),
     }
 
 
@@ -75,7 +76,7 @@ class SourceContributionTests(unittest.TestCase):
         self.assertEqual(list(result.contributions), list(GLOBAL_SOURCE_ORDER))
         self.assertEqual(
             [result.contributions[item].incremental_unique for item in GLOBAL_SOURCE_ORDER],
-            [2, 0, 2, 3],
+            [2, 0, 2, 3, 0],
         )
         himalayas = result.contributions["himalayas"]
         self.assertEqual(himalayas.unique_contributed, 5)

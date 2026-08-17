@@ -25,6 +25,7 @@ DEFAULT_USER_AGENT = "DanielJobAgent/1.0 (public-job-board-reader)"
 JOBICY_API_BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
 REMOTIVE_API_BASE_URL = "https://remotive.com/api/remote-jobs"
 HIMALAYAS_SEARCH_API_URL = "https://himalayas.app/jobs/api/search"
+REMOTEOK_API_URL = "https://remoteok.com/api"
 WWR_SALES_MARKETING_RSS_URL = (
     "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"
 )
@@ -484,6 +485,58 @@ class HimalayasJobSource(JobSource):
                 "Himalayas pagination metadata is invalid",
             )
         records = [job for job in payload["jobs"] if isinstance(job, dict)]
+        if not records:
+            return SourceResult(SourceStatus.NO_JOBS, [])
+        return SourceResult(SourceStatus.SUCCESS, records)
+
+
+class RemoteOKJobSource(JobSource):
+    """Lê uma vez o JSON feed público oficial do RemoteOK."""
+
+    def __init__(
+        self,
+        *,
+        timeout: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+        transport: HttpTransport | None = None,
+    ) -> None:
+        if timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+        self.url = REMOTEOK_API_URL
+        self.timeout = timeout
+        self.transport = transport or UrllibHttpTransport()
+
+    @staticmethod
+    def _is_metadata(record: Mapping[str, object]) -> bool:
+        """Reconhece a linha legal do feed sem confundi-la com uma vaga."""
+
+        return (
+            "last_updated" in record
+            and "legal" in record
+            and not any(key in record for key in ("id", "company", "position"))
+        )
+
+    def fetch(self) -> SourceResult:
+        payload, error = _fetch_json(
+            source_name="RemoteOK",
+            url=self.url,
+            timeout=self.timeout,
+            transport=self.transport,
+        )
+        if error is not None:
+            return error
+        if not isinstance(payload, list):
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD,
+                [],
+                "RemoteOK payload must be a list",
+            )
+        if any(not isinstance(item, dict) for item in payload):
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD,
+                [],
+                "RemoteOK payload entries must be objects",
+            )
+        records = [item for item in payload if not self._is_metadata(item)]
         if not records:
             return SourceResult(SourceStatus.NO_JOBS, [])
         return SourceResult(SourceStatus.SUCCESS, records)

@@ -1,4 +1,4 @@
-"""Demonstração real e compacta da contribuição das quatro fontes globais."""
+"""Demonstração real e compacta da contribuição das fontes globais."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ _LABELS = {
     "remotive": "Remotive",
     "weworkremotely": "We Work Remotely",
     "himalayas": "Himalayas",
+    "remoteok": "RemoteOK",
 }
 
 
@@ -64,7 +65,7 @@ def format_source_efficiency(result: SourceContributionResult) -> str:
 
 
 def main() -> None:
-    """Executa as quatro fontes globais; uso manual, fora dos testes."""
+    """Executa as fontes globais; uso manual, fora dos testes."""
 
     discovery = MultiSourceDiscovery().run(create_daniel_profile())
     print(format_source_efficiency(discovery.source_contributions))

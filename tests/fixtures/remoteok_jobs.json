@@ -1,0 +1,112 @@
+[
+  {
+    "last_updated": 1786637165,
+    "legal": "API Terms of Service: link back to Remote OK and mention Remote OK as source."
+  },
+  {
+    "slug": "remote-account-executive-worldwide-acme-201",
+    "id": "201",
+    "epoch": 1786550400,
+    "date": "2026-08-12T16:00:00+00:00",
+    "company": "Acme SaaS",
+    "position": "Account Executive",
+    "tags": ["sales", "saas", "full time"],
+    "description": "Own the full B2B SaaS sales cycle.",
+    "location": "Worldwide",
+    "apply_url": "https://remoteok.com/remote-jobs/remote-account-executive-worldwide-acme-201",
+    "salary_min": 80000,
+    "salary_max": 120000,
+    "url": "https://remoteok.com/remote-jobs/remote-account-executive-worldwide-acme-201"
+  },
+  {
+    "slug": "remote-account-executive-us-only-beta-202",
+    "id": 202,
+    "date": "2026-08-11T12:00:00+00:00",
+    "company": "Beta SaaS",
+    "position": "Account Executive",
+    "tags": ["sales"],
+    "description": "Sell to enterprise customers.",
+    "location": "United States",
+    "url": "https://remoteok.com/remote-jobs/remote-account-executive-us-only-beta-202",
+    "salary_min": 0,
+    "salary_max": 0
+  },
+  {
+    "slug": "remote-sdr-latam-gamma-203",
+    "id": "203",
+    "date": "2026-08-10T10:00:00+00:00",
+    "company": "Gamma",
+    "position": "Sales Development Representative",
+    "tags": ["sales", "full time"],
+    "description": "Outbound prospecting for a B2B SaaS platform.",
+    "location": "LATAM",
+    "url": "https://remoteok.com/remote-jobs/remote-sdr-latam-gamma-203",
+    "salary_min": 0,
+    "salary_max": 0
+  },
+  {
+    "slug": "remote-customer-success-delta-204",
+    "id": "204",
+    "date": "2026-08-09T10:00:00+00:00",
+    "company": "Delta",
+    "position": "Customer Success Manager",
+    "tags": ["customer support"],
+    "description": "Manage customer adoption and retention.",
+    "location": "Americas",
+    "url": "https://remoteok.com/remote-jobs/remote-customer-success-delta-204",
+    "salary_min": 0,
+    "salary_max": 0
+  },
+  {
+    "slug": "remote-software-engineer-epsilon-205",
+    "id": "205",
+    "date": "2026-08-08T10:00:00+00:00",
+    "company": "Epsilon",
+    "position": "Software Engineer",
+    "tags": ["dev", "engineer"],
+    "description": "Build distributed systems.",
+    "location": "Europe",
+    "url": "https://remoteok.com/remote-jobs/remote-software-engineer-epsilon-205",
+    "salary_min": 0,
+    "salary_max": 0
+  },
+  {
+    "slug": "remote-account-manager-brazil-zeta-206",
+    "id": "206",
+    "date": "2026-08-07T10:00:00+00:00",
+    "company": "Zeta",
+    "position": "Account Manager",
+    "tags": ["sales", "contract"],
+    "description": "Grow existing customer accounts.",
+    "location": "Brazil",
+    "url": "https://remoteok.com/remote-jobs/remote-account-manager-brazil-zeta-206",
+    "salary_min": 0,
+    "salary_max": 0
+  },
+  {
+    "slug": "remote-sales-consultant-unknown-location-eta-207",
+    "id": "207",
+    "date": "2026-08-06T10:00:00+00:00",
+    "company": "Eta",
+    "position": "Sales Consultant",
+    "tags": ["sales"],
+    "description": "Consultative sales.",
+    "location": "",
+    "url": "https://remoteok.com/remote-jobs/remote-sales-consultant-unknown-location-eta-207",
+    "salary_min": 0,
+    "salary_max": 0
+  },
+  {
+    "slug": "remote-ae-malformed-theta-208",
+    "id": "208",
+    "date": "not-a-date",
+    "company": "Theta",
+    "position": "Account Executive",
+    "tags": ["sales", null],
+    "description": "Full-cycle sales.",
+    "location": "Latin America",
+    "url": "https://remoteok.com/remote-jobs/remote-ae-malformed-theta-208",
+    "salary_min": "competitive",
+    "salary_max": 100000
+  }
+]

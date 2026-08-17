@@ -182,6 +182,7 @@ class GreenhouseGenericDiscoveryTests(unittest.TestCase):
             "remotive": StubSource(empty()),
             "weworkremotely": StubSource(empty()),
             "himalayas": StubSource(empty()),
+            "remoteok": StubSource(empty()),
         }
         tenants = (
             GreenhouseTenantConfig("one", "One", "one"),
@@ -195,10 +196,11 @@ class GreenhouseGenericDiscoveryTests(unittest.TestCase):
             jobicy_source=globals_["jobicy"], remotive_source=globals_["remotive"],
             wwr_source=globals_["weworkremotely"], greenhouse_tenants=tenants,
             himalayas_source=globals_["himalayas"],
+            remoteok_source=globals_["remoteok"],
             greenhouse_sources=greenhouse_sources,
         )
         output = MultiSourceDiscovery(registry=registry).run(create_daniel_profile())
-        self.assertEqual(output.sources_succeeded, ["Jobicy", "Remotive", "We Work Remotely", "Himalayas"])
+        self.assertEqual(output.sources_succeeded, ["Jobicy", "Remotive", "We Work Remotely", "Himalayas", "RemoteOK"])
         self.assertEqual(output.sources_failed, ["Greenhouse — One", "Greenhouse — Two"])
 
 

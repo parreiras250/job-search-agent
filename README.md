@@ -1481,7 +1481,8 @@ PYTHONPATH=src python3 -m daniel_job_agent.provenance_demo
 ### Contribuição incremental das fontes globais
 
 A medição da Etapa 13G.2 atribui cada opportunity deduplicada à primeira source
-que a observou na ordem fixa Jobicy, Remotive, We Work Remotely e Himalayas.
+que a observou na ordem fixa Jobicy, Remotive, We Work Remotely, Himalayas e
+RemoteOK.
 Ela mostra unique, KEEP, REVIEW, REJECT, relevant (`KEEP + REVIEW`), overlap e
 eficiência por request sem alterar automaticamente nenhuma source. Greenhouse
 tenants não fazem parte dessa baseline. Para executar manualmente a medição real:
@@ -1490,13 +1491,22 @@ tenants não fazem parte dessa baseline. Para executar manualmente a medição r
 PYTHONPATH=src python3 -m daniel_job_agent.source_efficiency_demo
 ```
 
+O RemoteOK é consultado por um único GET ao JSON feed oficial, sem filtros ou
+paginação. A linha inicial de metadata legal é descartada antes da ingestão;
+URLs RemoteOK e o nome da fonte são preservados para attribution. Demonstração
+manual real:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.remoteok_demo
+```
+
 - A lista de cargos reconhecidos é intencionalmente pequena. Famílias claramente
   técnicas ou não comerciais, como engenharia, produto, jurídico, RH e pesquisa,
   podem ser rejeitadas por padrões simples no título.
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- O registry operacional contém Jobicy, Remotive, We Work Remotely e Himalayas por padrão.
+- O registry operacional contém Jobicy, Remotive, We Work Remotely, Himalayas e RemoteOK por padrão.
   Greenhouse só entra no discovery genérico quando tenants do piloto são
   configurados explicitamente (máximo de cinco); Lever permanece isolado.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as

@@ -13,6 +13,7 @@ from .ingestion import (
     HimalayasJobAdapter,
     JobicyJobAdapter,
     RemotiveJobAdapter,
+    RemoteOKJobAdapter,
     WeWorkRemotelyJobAdapter,
 )
 from .sources import (
@@ -21,6 +22,7 @@ from .sources import (
     JobSource,
     JobicyJobSource,
     RemotiveJobSource,
+    RemoteOKJobSource,
     WWR_SALES_MARKETING_RSS_URL,
     WeWorkRemotelyJobSource,
 )
@@ -225,10 +227,11 @@ def create_default_source_registry(
     wwr_source: JobSource | None = None,
     himalayas_config: Mapping[str, object] | None = None,
     himalayas_source: JobSource | None = None,
+    remoteok_source: JobSource | None = None,
     greenhouse_tenants: tuple[GreenhouseTenantConfig, ...] = (),
     greenhouse_sources: Mapping[str, JobSource] | None = None,
 ) -> SourceRegistry:
-    """Registra as quatro fontes globais e tenants explícitos."""
+    """Registra as cinco fontes globais e tenants explícitos."""
 
     jobicy_values = {
         "geo": "latam", "industry": "seller", "count": 100, "tag": None,
@@ -319,6 +322,23 @@ def create_default_source_registry(
             adapter_factory=HimalayasJobAdapter,
             query_source_factory=lambda parameters: HimalayasJobSource(**parameters),
             default_config=himalayas_values,
+            request_budget=1,
+        ),
+        SourceDefinition(
+            source_id="remoteok", display_name="RemoteOK",
+            source_type=SourceType.GLOBAL_BOARD, source_family="remoteok",
+            source_instance="remoteok:global",
+            capabilities=SourceCapabilities(
+                global_search=True, supports_query=False,
+                provides_description=True, provides_salary=True,
+                provides_posted_date=True, provides_external_id=True,
+                provides_direct_url=True,
+                lifecycle_authority=LifecycleAuthority.OBSERVATIONAL,
+                requires_auth=False, requires_attribution=True,
+            ),
+            source_factory=(lambda: remoteok_source) if remoteok_source else RemoteOKJobSource,
+            adapter_factory=RemoteOKJobAdapter,
+            default_config={"feed_url": "https://remoteok.com/api"},
             request_budget=1,
         ),
     ]

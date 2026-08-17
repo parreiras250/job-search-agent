@@ -14,6 +14,7 @@ GLOBAL_SOURCE_ORDER = (
     "remotive",
     "weworkremotely",
     "himalayas",
+    "remoteok",
 )
 
 
@@ -199,9 +200,11 @@ def measure_source_contributions(
     himalayas = contributions.get("himalayas")
     delta = None
     if himalayas is not None and himalayas.status == "SUCCESS":
-        baseline_sources = set(operational_order[:-1])
+        himalayas_index = operational_order.index("himalayas")
+        baseline_sources = set(operational_order[:himalayas_index])
         baseline = [group for group in groups.values() if group[1] & baseline_sources]
-        expanded = list(groups.values())
+        expanded_sources = baseline_sources | {"himalayas"}
+        expanded = [group for group in groups.values() if group[1] & expanded_sources]
 
         def count(values: list[tuple[str, set[str]]], decision: str) -> int:
             return sum(item[0] == decision for item in values)

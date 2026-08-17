@@ -1,11 +1,11 @@
 """Conversão local de registros brutos em oportunidades padronizadas."""
 
-from dataclasses import dataclass
-from datetime import date, datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Callable, Iterable, Mapping
 
-from .models import JobOpportunity
+from .models import JobOpportunity, LocationRestriction
 from .rules import normalize_company, normalize_location, normalize_role
 
 RawJobRecord = Mapping[str, object]
@@ -532,6 +532,143 @@ class RemotiveJobAdapter(BaseJobAdapter):
             "brazil_eligible": None,
         }
         return super().adapt(mapped)
+
+
+class HimalayasJobAdapter(BaseJobAdapter):
+    """Converte o schema público Himalayas sem interpretar timezone para score."""
+
+    source_name = "Himalayas"
+    report_extended_optional_fields = True
+
+    def adapt(self, record: RawJobRecord) -> IngestionResult:
+        extra_warnings: list[IngestionWarning] = []
+
+        location_value = record.get("locationRestrictions")
+        location_restrictions: list[LocationRestriction] | None = None
+        brazil_eligible: bool | None = None
+        if isinstance(location_value, list):
+            restrictions: list[LocationRestriction] = []
+            malformed = False
+            for item in location_value:
+                if isinstance(item, str) and item.strip():
+                    restrictions.append(
+                        LocationRestriction(
+                            alpha2=None,
+                            name=" ".join(item.split()),
+                            slug=None,
+                        )
+                    )
+                    continue
+                if not isinstance(item, Mapping):
+                    malformed = True
+                    continue
+                alpha2 = item.get("alpha2")
+                name = item.get("name")
+                slug = item.get("slug")
+                if not all(isinstance(value, str) for value in (alpha2, name, slug)):
+                    malformed = True
+                    continue
+                try:
+                    restriction = LocationRestriction(
+                        alpha2=alpha2.strip(),
+                        name=" ".join(name.split()),
+                        slug=slug.strip(),
+                    )
+                except ValueError:
+                    malformed = True
+                    continue
+                restrictions.append(restriction)
+            location_restrictions = restrictions
+            names = [item.name for item in restrictions]
+            location = ", ".join(names) if names else "Worldwide"
+            positive = ("brazil", "latam", "latin america", "americas", "worldwide")
+            brazil_eligible = (
+                True if not names or any(
+                    signal in name.casefold()
+                    for name in names for signal in positive
+                ) else False
+            )
+            if malformed:
+                extra_warnings.append(IngestionWarning(
+                    "location_restrictions",
+                    "locationRestrictions contains an invalid entry",
+                    location_value,
+                ))
+        else:
+            location = "Remote"
+            if location_value is not None:
+                extra_warnings.append(IngestionWarning(
+                    "location_restrictions",
+                    "locationRestrictions must be a list",
+                    location_value,
+                ))
+
+        timezone_value = record.get("timezoneRestrictions")
+        timezone_restrictions: list[int | float | str] | None = None
+        if isinstance(timezone_value, list):
+            timezone_restrictions = []
+            malformed_timezone = False
+            for item in timezone_value:
+                if isinstance(item, bool):
+                    malformed_timezone = True
+                elif isinstance(item, (int, float)):
+                    timezone_restrictions.append(item)
+                elif isinstance(item, str) and item.strip():
+                    timezone_restrictions.append(" ".join(item.split()))
+                else:
+                    malformed_timezone = True
+            if malformed_timezone:
+                extra_warnings.append(IngestionWarning(
+                    "timezone_restrictions",
+                    "timezoneRestrictions contains an invalid item",
+                    timezone_value,
+                ))
+        elif timezone_value is not None:
+            extra_warnings.append(IngestionWarning(
+                "timezone_restrictions",
+                "timezoneRestrictions must be a list",
+                timezone_value,
+            ))
+
+        seniority = record.get("seniority")
+        if isinstance(seniority, list) and all(
+            isinstance(item, str) for item in seniority
+        ):
+            seniority = ", ".join(item.strip() for item in seniority if item.strip()) or None
+
+        pub_date = record.get("pubDate")
+        if isinstance(pub_date, (int, float)) and not isinstance(pub_date, bool):
+            try:
+                pub_date = datetime.fromtimestamp(
+                    pub_date / 1000, tz=timezone.utc
+                ).isoformat()
+            except (OverflowError, OSError, ValueError):
+                pass
+
+        parent_categories = record.get("parentCategories")
+        mapped: dict[str, object] = {
+            "company": record.get("companyName"),
+            "role": record.get("title"),
+            "job_url": record.get("applicationLink"),
+            "location": location,
+            "description": record.get("description") or record.get("excerpt"),
+            "employment_type": record.get("employmentType"),
+            "salary_min": record.get("minSalary"),
+            "salary_max": record.get("maxSalary"),
+            "salary_currency": record.get("currency"),
+            "salary_period": record.get("salaryPeriod"),
+            "external_id": record.get("guid"),
+            "job_level": seniority,
+            "date_posted": pub_date,
+            "industries_mentioned": parent_categories,
+            "remote": True,
+            "brazil_eligible": brazil_eligible,
+        }
+        result = super().adapt(mapped)
+        if result.opportunity is not None:
+            result.opportunity.location_restrictions = location_restrictions
+            result.opportunity.timezone_restrictions = timezone_restrictions
+        return replace(result, warnings=[*result.warnings, *extra_warnings])
 
 
 def ingest_batch(

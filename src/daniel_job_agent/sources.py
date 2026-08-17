@@ -24,6 +24,7 @@ DEFAULT_HTTP_TIMEOUT_SECONDS = 10.0
 DEFAULT_USER_AGENT = "DanielJobAgent/1.0 (public-job-board-reader)"
 JOBICY_API_BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
 REMOTIVE_API_BASE_URL = "https://remotive.com/api/remote-jobs"
+HIMALAYAS_SEARCH_API_URL = "https://himalayas.app/jobs/api/search"
 WWR_SALES_MARKETING_RSS_URL = (
     "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"
 )
@@ -157,6 +158,24 @@ def build_remotive_jobs_url(
         parameters.append(("limit", str(limit)))
     query = urlencode(parameters)
     return f"{REMOTIVE_API_BASE_URL}?{query}" if query else REMOTIVE_API_BASE_URL
+
+
+def build_himalayas_jobs_url(
+    *, q: str = "sales", sort: str = "recent", page: int = 1
+) -> str:
+    """Monta uma única busca oficial, filtrada e deterministicamente paginada."""
+
+    if not isinstance(q, str) or not q.strip():
+        raise ValueError("q must be non-empty text")
+    allowed_sorts = {
+        "relevant", "recent", "salaryAsc", "salaryDesc",
+        "nameAToZ", "nameZToA", "jobs",
+    }
+    if sort not in allowed_sorts:
+        raise ValueError("sort is not supported by the Himalayas API")
+    if isinstance(page, bool) or not isinstance(page, int) or page < 1:
+        raise ValueError("page must be a positive integer")
+    return f"{HIMALAYAS_SEARCH_API_URL}?{urlencode({'q': q.strip(), 'sort': sort, 'page': page})}"
 
 
 def _fetch_json(
@@ -408,6 +427,66 @@ class RemotiveJobSource(JobSource):
         if not records:
             return SourceResult(status=SourceStatus.NO_JOBS, records=[])
         return SourceResult(status=SourceStatus.SUCCESS, records=records)
+
+
+class HimalayasJobSource(JobSource):
+    """Executa uma página da busca pública oficial da Himalayas."""
+
+    def __init__(
+        self,
+        *,
+        q: str = "sales",
+        sort: str = "recent",
+        page: int = 1,
+        timeout: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+        transport: HttpTransport | None = None,
+    ) -> None:
+        if timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+        self.q = q.strip()
+        self.sort = sort
+        self.page = page
+        self.url = build_himalayas_jobs_url(q=q, sort=sort, page=page)
+        self.timeout = timeout
+        self.transport = transport or UrllibHttpTransport()
+
+    def fetch(self) -> SourceResult:
+        payload, error = _fetch_json(
+            source_name="Himalayas",
+            url=self.url,
+            timeout=self.timeout,
+            transport=self.transport,
+        )
+        if error is not None:
+            return error
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD, [],
+                "Himalayas payload must contain a jobs list",
+            )
+        metadata = {
+            "updatedAt": payload.get("updatedAt"),
+            "offset": payload.get("offset"),
+            "limit": payload.get("limit"),
+            "totalCount": payload.get("totalCount"),
+        }
+        if any(
+            isinstance(value, bool) or not isinstance(value, int)
+            for value in metadata.values()
+        ) or not (
+            metadata["updatedAt"] >= 0
+            and metadata["offset"] >= 0
+            and 1 <= metadata["limit"] <= 20
+            and metadata["totalCount"] >= 0
+        ):
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD, [],
+                "Himalayas pagination metadata is invalid",
+            )
+        records = [job for job in payload["jobs"] if isinstance(job, dict)]
+        if not records:
+            return SourceResult(SourceStatus.NO_JOBS, [])
+        return SourceResult(SourceStatus.SUCCESS, records)
 
 
 class WeWorkRemotelyJobSource(JobSource):

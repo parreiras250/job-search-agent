@@ -1,8 +1,8 @@
 # Source Architecture Plan
 
-Status: Etapa 13A research completed and the bounded Etapa 13B framework
-implemented on 2026-08-16. Only Jobicy and Remotive are registered as real
-operational sources.
+Status: Etapas 13A–13F and 13G.1 implemented. Jobicy, Remotive, We Work
+Remotely and Himalayas are registered as real global operational sources;
+Greenhouse tenants are generated from the persistent Company Registry.
 
 ## Etapa 13B implemented foundation
 
@@ -207,7 +207,8 @@ SQLite-backed enable/disable should come only after the contract is proven.
 
 ## Company registry (implemented in 13F)
 
-SQLite stores this local operational state in schema version 6. The implemented
+SQLite introduced this local operational state in schema version 6. The current
+schema is version 7 after adding structured Himalayas restrictions. The implemented
 record is intentionally compact and generic:
 
 ```text
@@ -403,9 +404,21 @@ families and disabled companies are skipped safely. A deterministic 25-tenant
 cap prevents accidental scale; no automatic company discovery or bulk import is
 included.
 
-### 13G — Remote/Global Wave 1
+### 13G.1 — Himalayas Remote Jobs API (implemented)
 
-Measure WWR incremental gain and only then evaluate another documented source.
+Register Himalayas as the fourth global source. The operational plan performs
+one official search request with `q=sales`, `sort=recent` and `page=1`. It does
+not add a country filter because Brazil-only search would omit worldwide jobs
+that may be eligible. The source is observational, requires attribution and
+preserves structured salary, location restrictions and timezone restrictions.
+Timezone data is persisted but has no scoring effect. The conceptual broad-run
+budget is now Jobicy 4 maximum, Remotive 4 maximum, WWR 1 and Himalayas 1; the
+default broad strategy uses one request from each source.
+
+### 13G.2 — Remote/Global Wave 1 continuation
+
+Measure Himalayas incremental gain before evaluating another documented source.
+Arbeitnow, RemoteOK and Working Nomads remain out of scope.
 
 ### 13H — Lifecycle authority
 

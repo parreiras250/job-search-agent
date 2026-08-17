@@ -516,8 +516,8 @@ Esse comando não é executado pela suíte de testes.
 
 ## Discovery multi-source
 
-`MultiSourceDiscovery` executa Jobicy, Remotive e o RSS Sales and Marketing do
-We Work Remotely, converte cada resposta com seu próprio adapter e reúne as
+`MultiSourceDiscovery` executa Jobicy, Remotive, o RSS Sales and Marketing do
+We Work Remotely e a busca Himalayas, converte cada resposta com seu próprio adapter e reúne as
 oportunidades válidas antes do enrichment e do pipeline global.
 
 ```text
@@ -531,6 +531,37 @@ As configurações padrão ficam em estruturas pequenas e alteráveis:
 - Jobicy: `geo=latam`, `industry=seller`, `count=100`, sem `tag`;
 - Remotive: `category=sales`, sem `search`, empresa ou limite.
 - We Work Remotely: RSS público oficial Sales and Marketing, sem filtro extra.
+- Himalayas: uma página `sales`, ordenada por data recente, sem filtro de país.
+
+## Himalayas Remote Jobs API
+
+A quarta source global usa somente a
+[Remote Jobs API oficial da Himalayas](https://himalayas.app/docs/remote-jobs-api),
+pública, gratuita e sem autenticação. A consulta operacional faz um único GET
+em `/jobs/api/search` com `q=sales`, `sort=recent` e `page=1`. Nenhum filtro de
+país é aplicado, porque uma consulta apenas por Brasil poderia ocultar vagas
+worldwide elegíveis.
+
+`HimalayasJobAdapter` preserva ID, URL de candidatura, descrição, data,
+employment type, senioridade, salary min/max, moeda, período, restrições de
+localização (`alpha2`, `name` e `slug`) e offsets de timezone. Lista vazia de
+localizações significa `Worldwide`; lista vazia de offsets significa
+`All timezones`. Salários não são convertidos ou anualizados.
+O search endpoint real também retorna localizações como `list[str]` e offsets
+como `list[int | float]`; esses formatos são preservados sem inferir códigos de
+país e sem afetar o score. Objetos estruturados e strings timezone legadas
+continuam compatíveis.
+Timezone é armazenado em `timezone_restrictions`, mas não altera score nesta
+etapa. A source é `OBSERVATIONAL` e exige attribution/link para Himalayas.
+
+Consulta real manual, fora dos testes:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.himalayas_demo
+```
+
+O demo mostra a query, contagens de ingestão e decisões, warnings e as dez
+primeiras oportunidades, incluindo timezone quando informado.
 
 Cada fonte é consultada exatamente uma vez. Uma falha isolada não interrompe as
 demais. O resultado mantém
@@ -848,7 +879,7 @@ o CRM manual permanece após uma atualização automática. A função
 O comando principal executa explicitamente o primeiro fluxo real completo:
 
 ```text
-Jobicy broad + Remotive broad + WWR Sales and Marketing RSS
+Jobicy broad + Remotive broad + WWR Sales and Marketing RSS + Himalayas sales
 → MultiSourceDiscovery
 → enrichment
 → pipeline e ranking
@@ -1453,7 +1484,7 @@ PYTHONPATH=src python3 -m daniel_job_agent.provenance_demo
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- O registry operacional contém Jobicy, Remotive e We Work Remotely por padrão.
+- O registry operacional contém Jobicy, Remotive, We Work Remotely e Himalayas por padrão.
   Greenhouse só entra no discovery genérico quando tenants do piloto são
   configurados explicitamente (máximo de cinco); Lever permanece isolado.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as

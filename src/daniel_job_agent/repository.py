@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime, timezone
 from enum import Enum
 import json
@@ -16,6 +16,7 @@ from .models import (
     CompanyRecord,
     JobLifecycleStatus,
     JobOpportunity,
+    LocationRestriction,
     RoleFamily,
     Seniority,
 )
@@ -114,12 +115,13 @@ _AUTOMATIC_COLUMNS = (
     "saas_experience_required", "base_salary", "ote", "salary_min",
     "salary_max", "salary_currency", "salary_period", "salary_text",
     "job_level", "source_id", "source_family", "source_instance",
+    "location_restrictions", "timezone_restrictions",
     "date_posted", "match_score", "retention_decision",
     "role_family", "seniority", "positive_reasons", "potential_gaps",
     "unknowns",
 )
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +166,22 @@ def _bool_to_db(value: bool | None) -> int | None:
 
 def _bool_from_db(value: int | None) -> bool | None:
     return None if value is None else bool(value)
+
+
+def _location_restrictions_from_db(value: str | None) -> list[LocationRestriction] | None:
+    """Lê tanto o formato estruturado atual quanto listas de nomes do schema v7."""
+
+    if not value:
+        return None
+    decoded = json.loads(value)
+    if decoded is None:
+        return None
+    return [
+        LocationRestriction(**item)
+        if isinstance(item, dict)
+        else LocationRestriction(alpha2=None, name=item, slug=None)
+        for item in decoded
+    ]
 
 
 class JobRepository:
@@ -227,6 +245,8 @@ class JobRepository:
                 source_id TEXT,
                 source_family TEXT,
                 source_instance TEXT,
+                location_restrictions TEXT,
+                timezone_restrictions TEXT,
                 date_found TEXT NOT NULL,
                 date_posted TEXT,
                 first_seen_at TEXT NOT NULL,
@@ -368,6 +388,8 @@ class JobRepository:
             "source_id": "TEXT",
             "source_family": "TEXT",
             "source_instance": "TEXT",
+            "location_restrictions": "TEXT",
+            "timezone_restrictions": "TEXT",
         }
         for name, definition in additions.items():
             if name not in columns:
@@ -928,6 +950,11 @@ class JobRepository:
             "source_id": job.source_id,
             "source_family": job.source_family,
             "source_instance": job.source_instance,
+            "location_restrictions": _dump(
+                [asdict(item) for item in job.location_restrictions]
+                if job.location_restrictions is not None else None
+            ),
+            "timezone_restrictions": _dump(job.timezone_restrictions),
             "date_posted": job.date_posted.isoformat() if job.date_posted else None,
             "match_score": item.match_score,
             "retention_decision": item.retention_decision.value,
@@ -1273,6 +1300,13 @@ class JobRepository:
             external_id=row["external_id"], job_level=row["job_level"],
             source_id=row["source_id"], source_family=row["source_family"],
             source_instance=row["source_instance"],
+            location_restrictions=_location_restrictions_from_db(
+                row["location_restrictions"]
+            ),
+            timezone_restrictions=(
+                json.loads(row["timezone_restrictions"])
+                if row["timezone_restrictions"] else None
+            ),
             date_found=date.fromisoformat(row["date_found"]),
             date_posted=date.fromisoformat(row["date_posted"]) if row["date_posted"] else None,
             match_score=row["match_score"], why_match=positive_reasons,

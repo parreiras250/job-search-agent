@@ -111,6 +111,24 @@ class CompanyRecord:
                 raise ValueError(f"{name} must be timezone-aware UTC")
 
 
+@dataclass(frozen=True, slots=True)
+class LocationRestriction:
+    """País/região estruturado conforme o contrato público da Himalayas."""
+
+    alpha2: str | None
+    name: str
+    slug: str | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not self.name.strip():
+            raise ValueError("location restriction name cannot be empty")
+        for field_name, value in (("alpha2", self.alpha2), ("slug", self.slug)):
+            if value is not None and (
+                not isinstance(value, str) or not value.strip()
+            ):
+                raise ValueError(f"location restriction {field_name} cannot be empty")
+
+
 @dataclass(slots=True)
 class ApplicationTracking:
     """Dados manuais do CRM, separados das informações publicadas da vaga.
@@ -231,6 +249,8 @@ class JobOpportunity:
     source_instance: str | None = None
     source_type: str | None = None
     lifecycle_authority: str | None = None
+    location_restrictions: list[LocationRestriction] | None = None
+    timezone_restrictions: list[int | float | str] | None = None
 
     # Datas do anúncio e do acompanhamento interno.
     date_found: date = field(default_factory=date.today)

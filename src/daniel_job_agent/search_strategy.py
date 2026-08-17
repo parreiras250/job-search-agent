@@ -181,6 +181,10 @@ def create_default_search_strategy() -> SearchStrategy:
             SourceQuery(
                 "weworkremotely", "sales_marketing_feed", {}, broad=True
             ),
+            SourceQuery(
+                "himalayas", "broad_sales",
+                {"q": "sales", "sort": "recent", "page": 1}, broad=True,
+            ),
         ),
     )
 

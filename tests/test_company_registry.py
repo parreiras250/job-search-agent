@@ -138,12 +138,12 @@ class CompanyPersistenceTests(unittest.TestCase):
 
 
 class CompanyRegistryGenerationTests(unittest.TestCase):
-    def test_empty_registry_keeps_three_global_sources(self) -> None:
+    def test_empty_registry_keeps_four_global_sources(self) -> None:
         with JobRepository(":memory:") as repository:
             registry, snapshot = CompanyRegistry(repository).build_source_registry()
             self.assertEqual(
                 [item.source_id for item in registry.list_all()],
-                ["jobicy", "remotive", "weworkremotely"],
+                ["jobicy", "remotive", "weworkremotely", "himalayas"],
             )
             self.assertEqual(snapshot.tracked, 0)
 

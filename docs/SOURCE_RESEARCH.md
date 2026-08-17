@@ -97,7 +97,7 @@ not employer posting fees. `UNKNOWN` cost means it must be checked before work.
 | [We Work Remotely](https://weworkremotely.com/remote-job-rss-feed) | Official public RSS; link attribution requested | Global remote; Sales and Marketing feed; strong role fit, geography evaluated per job | Official category feed integrated with one GET; WWR URL and attribution preserved | Low RSS adapter, implemented in 13C | P0 | IMPLEMENTED / VERIFIED |
 | [Arbeitnow](https://www.arbeitnow.com/blog/job-board-api) | Free no-key API; custom private API paid | Global endpoint but Europe-oriented coverage; remote flag; LATAM incremental gain uncertain | Official API; aggregated ATS data | Low | P1 pilot | VERIFIED |
 | [RemoteOK](https://remoteok.com/) | API/feed/auth/cost not verified in this audit | Remote/global and potentially sales relevant | Terms, attribution and automation need official verification | Unknown | P2 research | UNKNOWN |
-| [Himalayas](https://himalayas.app/) | Structured public access not verified | Remote/global; likely useful, LATAM coverage unmeasured | Verify official API/feed and terms | Unknown | P2 research | UNKNOWN |
+| [Himalayas](https://himalayas.app/docs/remote-jobs-api) | Official free public JSON search API; no auth; attribution required | Remote/global; structured country/worldwide restrictions; LATAM incremental gain still to measure | One `sales` search page per operational run; salary, dates, location and timezone restrictions preserved | Low; implemented in 13G.1 | P0 | IMPLEMENTED / VERIFIED |
 | [Working Nomads](https://www.workingnomads.com/) | Structured public access not verified | Remote/global; sales category likely but not verified | Verify feed/API, attribution and terms | Unknown | P2 research | UNKNOWN |
 | [Dynamite Jobs](https://dynamitejobs.com/) | Structured public access not verified | Remote roles; sales relevance plausible, unmeasured | Verify official access and terms | Unknown | P2 research | UNKNOWN |
 | [Remote.co](https://remote.co/) | Structured public access not verified | Remote/global; relevance unmeasured | Verify official access and terms | Unknown | DEFER | UNKNOWN |
@@ -177,9 +177,9 @@ Human/community access must not be converted into login automation.
 
 | Tier | Candidates | Rationale / gate |
 |---|---|---|
-| **P0** | Jobicy, Remotive; framework support for Greenhouse, Lever, Ashby; We Work Remotely RSS | Strong official evidence, structured data, zero-cost public read path documented or already implemented, high expected remote/startup coverage. ATS execution waits for registry/provenance. |
+| **P0** | Jobicy, Remotive, We Work Remotely RSS, Himalayas; framework support for Greenhouse, Lever, Ashby | Strong official evidence, structured data, zero-cost public read path documented or already implemented, high expected remote/startup coverage. |
 | **P1** | Arbeitnow pilot; Workable, SmartRecruiters, Recruitee, Personio verification; focused research on Torre, Get on Board, Gupy, Wellfound, YC, RepVue, Bravado | Promising coverage or geography, but access terms, auth, completeness or actual incremental gain remains a gate. |
-| **P2** | RemoteOK, Himalayas, Working Nomads, Dynamite Jobs, Adzuna, Jooble, The Muse, Techstars, Built In, HireLATAM, Somewhere, LatamCent, RevGenius | Research queue; do not schedule until official access/cost/attribution is verified. |
+| **P2** | RemoteOK, Working Nomads, Dynamite Jobs, Adzuna, Jooble, The Muse, Techstars, Built In, HireLATAM, Somewhere, LatamCent, RevGenius | Research queue; do not schedule until official access/cost/attribution is verified. |
 | **DEFER** | Teamtailor, Breezy, Comeet, Workday, Jobvite, iCIMS, Remote.co, NoDesk, Jobgether, Remote Rocketship, Careerjet, Findwork, Vagas, Catho, InfoJobs, Workana, Revelo, GeekHunter, Near, Virtual Latinos, Welcome to the Jungle, Pavilion | Higher setup/uncertainty, weaker expected fit, or no verified public method. Re-evaluate after P0/P1 metrics. |
 | **BLOCKED / RESTRICTED** | LinkedIn, Indeed, Glassdoor, Google Jobs | Partner/publisher-only or no public search access. Never use brittle/prohibited scraping or login automation. |
 

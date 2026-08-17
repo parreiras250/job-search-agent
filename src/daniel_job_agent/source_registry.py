@@ -10,12 +10,14 @@ from typing import Callable, Mapping
 from .ingestion import (
     BaseJobAdapter,
     GreenhouseJobAdapter,
+    HimalayasJobAdapter,
     JobicyJobAdapter,
     RemotiveJobAdapter,
     WeWorkRemotelyJobAdapter,
 )
 from .sources import (
     GreenhouseJobSource,
+    HimalayasJobSource,
     JobSource,
     JobicyJobSource,
     RemotiveJobSource,
@@ -221,10 +223,12 @@ def create_default_source_registry(
     jobicy_source: JobSource | None = None,
     remotive_source: JobSource | None = None,
     wwr_source: JobSource | None = None,
+    himalayas_config: Mapping[str, object] | None = None,
+    himalayas_source: JobSource | None = None,
     greenhouse_tenants: tuple[GreenhouseTenantConfig, ...] = (),
     greenhouse_sources: Mapping[str, JobSource] | None = None,
 ) -> SourceRegistry:
-    """Registra as três fontes operacionais na ordem determinística."""
+    """Registra as quatro fontes globais e tenants explícitos."""
 
     jobicy_values = {
         "geo": "latam", "industry": "seller", "count": 100, "tag": None,
@@ -233,6 +237,10 @@ def create_default_source_registry(
     remotive_values = {
         "category": "sales", "company_name": None, "search": None, "limit": None,
         **dict(remotive_config or {}),
+    }
+    himalayas_values = {
+        "q": "sales", "sort": "recent", "page": 1,
+        **dict(himalayas_config or {}),
     }
     definitions = [
         SourceDefinition(
@@ -290,6 +298,27 @@ def create_default_source_registry(
             source_factory=(lambda: wwr_source) if wwr_source else WeWorkRemotelyJobSource,
             adapter_factory=WeWorkRemotelyJobAdapter,
             default_config={"feed_url": WWR_SALES_MARKETING_RSS_URL},
+            request_budget=1,
+        ),
+        SourceDefinition(
+            source_id="himalayas", display_name="Himalayas",
+            source_type=SourceType.GLOBAL_BOARD, source_family="himalayas",
+            source_instance="himalayas:global",
+            capabilities=SourceCapabilities(
+                global_search=True, supports_query=True,
+                supports_location_filter=True, supports_pagination=True,
+                provides_description=True, provides_salary=True,
+                provides_posted_date=True, provides_external_id=True,
+                provides_direct_url=True,
+                lifecycle_authority=LifecycleAuthority.OBSERVATIONAL,
+                requires_auth=False, requires_attribution=True,
+            ),
+            source_factory=(lambda: himalayas_source) if himalayas_source else (
+                lambda: HimalayasJobSource(**himalayas_values)
+            ),
+            adapter_factory=HimalayasJobAdapter,
+            query_source_factory=lambda parameters: HimalayasJobSource(**parameters),
+            default_config=himalayas_values,
             request_budget=1,
         ),
     ]

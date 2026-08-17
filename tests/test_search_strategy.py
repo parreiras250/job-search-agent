@@ -89,7 +89,7 @@ class SearchStrategyConfigurationTests(unittest.TestCase):
         self.assertEqual(strategy.name, "Daniel broad sales baseline")
         self.assertEqual(len(strategy.jobicy_queries), 1)
         self.assertEqual(len(strategy.remotive_queries), 1)
-        self.assertEqual(strategy.expected_requests, 3)
+        self.assertEqual(strategy.expected_requests, 4)
         self.assertTrue(strategy.jobicy_queries[0].broad)
         self.assertTrue(strategy.remotive_queries[0].broad)
 
@@ -122,7 +122,7 @@ class SearchStrategyConfigurationTests(unittest.TestCase):
             SearchStrategy("too many", (), remotive_queries)
 
     def test_public_modes_select_broad_or_full_and_preserve_limits(self):
-        self.assertEqual(create_search_strategy("broad").expected_requests, 3)
+        self.assertEqual(create_search_strategy("broad").expected_requests, 4)
         self.assertEqual(create_search_strategy("full").expected_requests, 8)
         with self.assertRaises(ValueError):
             create_search_strategy("aggressive")
@@ -136,7 +136,10 @@ class MultiQueryDiscoveryTests(unittest.TestCase):
             strategy,
             jobicy_source_factory=jobicy_factory,
             remotive_source_factory=remotive_factory,
-            source_factories={"weworkremotely": lambda query: StubSource(success([]))},
+            source_factories={
+                "weworkremotely": lambda query: StubSource(success([])),
+                "himalayas": lambda query: StubSource(success([])),
+            },
         ).run(create_daniel_profile())
         self.assertTrue(all(source.calls == 1 for source in jobicy_factory.sources))
         self.assertTrue(all(source.calls == 1 for source in remotive_factory.sources))
@@ -342,8 +345,8 @@ class QueryEfficiencyTests(unittest.TestCase):
             {"broad_latam_sales": success([jobicy_record(1)])},
             {"broad_sales": success([remotive_record(1)])},
         )
-        self.assertEqual(populated.requests_per_unique_job, 1.5)
-        self.assertEqual(populated.requests_per_keep, 1.5)
+        self.assertEqual(populated.requests_per_unique_job, 2.0)
+        self.assertEqual(populated.requests_per_keep, 2.0)
         empty = self.run_strategy(
             strategy,
             {"broad_latam_sales": success([])},

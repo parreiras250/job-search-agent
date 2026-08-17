@@ -20,6 +20,7 @@ from daniel_job_agent import (
     reconcile_lifecycle,
     sync_opportunities,
 )
+from daniel_job_agent.repository import SCHEMA_VERSION
 
 
 def make_job(identifier: str, **changes: object) -> JobOpportunity:
@@ -288,22 +289,24 @@ class LifecycleSchemaMigrationTests(unittest.TestCase):
             self.assertEqual(repository.count(), 1)
             self.assertIn("lifecycle_status", columns)
             self.assertIn("consecutive_misses", columns)
-            self.assertEqual(version, 5)
+            self.assertEqual(version, SCHEMA_VERSION)
             repository.close()
 
             reopened = JobRepository(path)
             self.assertEqual(reopened.count(), 1)
             self.assertEqual(
-                reopened.connection.execute("PRAGMA user_version").fetchone()[0], 5
+                reopened.connection.execute("PRAGMA user_version").fetchone()[0],
+                SCHEMA_VERSION,
             )
             reopened.close()
 
             future = sqlite3.connect(path)
-            future.execute("PRAGMA user_version = 5")
+            future.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             future.close()
             compatible = JobRepository(path)
             self.assertEqual(
-                compatible.connection.execute("PRAGMA user_version").fetchone()[0], 5
+                compatible.connection.execute("PRAGMA user_version").fetchone()[0],
+                SCHEMA_VERSION,
             )
             compatible.close()
 

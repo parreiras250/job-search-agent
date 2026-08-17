@@ -205,27 +205,29 @@ available tenant identifiers. Secrets stay outside the registry rows and Git.
 Initially, definitions can be Python configuration to keep 13B reversible.
 SQLite-backed enable/disable should come only after the contract is proven.
 
-## Company registry
+## Company registry (implemented in 13F)
 
-SQLite is appropriate because this is local operational state, needs safe
-updates, and is naturally joined to health history. A future company record:
+SQLite stores this local operational state in schema version 6. The implemented
+record is intentionally compact and generic:
 
 ```text
-companies
-  company_id, company_name, careers_url
+tracked_companies
+  id, company_key, company_name, careers_url
   ats_family, ats_identifier, enabled, priority
   remote_policy, latam_evidence
-  last_checked, last_success, failure_count
+  notes, created_at, updated_at
+  last_checked_at, last_success_at, failure_count
 ```
 
 The source registry defines *how Greenhouse works*; the company registry defines
-*which Greenhouse tenants to call*. One company may later have multiple source
-instances, so a normalized `company_source_instances` table is preferable to
-putting every ATS field directly on `companies`.
+*which Greenhouse tenants to call*. The generic `ats_identifier` holds the
+platform-specific public identifier without adding one column per ATS. Only
+Greenhouse is executable in 13F. Other families remain stored and appear as
+unsupported without generating requests or lifecycle misses.
 
-Manual additions should validate the careers URL and require explicit ATS
-family/identifier. Future automatic discovery should create disabled
-`CANDIDATE` rows with evidence, never immediately schedule arbitrary URLs.
+Manual additions require a stable normalized `company_key`, display name, ATS
+family and identifier. They can be enabled/disabled through a non-interactive
+CLI. Future automatic discovery is still out of scope.
 
 To avoid hundreds of unnecessary requests:
 
@@ -392,10 +394,14 @@ promote the automatic primary data while preserving internal identity, history
 and manual CRM fields. No company registry, automatic tenant discovery, Lever
 or Ashby integration is part of this pilot.
 
-### 13F — Company Registry
+### 13F — Company Registry (implemented)
 
-SQLite registry, manual CLI, enable/disable, priorities, rotation and tenant
-health. No automatic company discovery yet.
+SQLite schema version 6 adds `tracked_companies`, manual CLI operations,
+enable/disable, priority ordering and per-company health. Enabled Greenhouse
+records generate authoritative tenant sources in generic discovery. Unsupported
+families and disabled companies are skipped safely. A deterministic 25-tenant
+cap prevents accidental scale; no automatic company discovery or bulk import is
+included.
 
 ### 13G — Remote/Global Wave 1
 

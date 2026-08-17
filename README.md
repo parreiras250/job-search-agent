@@ -277,10 +277,10 @@ User-Agent e transforma erros HTTP, conexão, timeout e JSON inválido em
 uma responsabilidade diferente de validar e padronizar cada vaga. O pipeline
 continua conhecendo apenas `JobOpportunity` e não contém código do Greenhouse.
 
-Na Etapa 13E, Greenhouse também pode participar do discovery genérico como um
-piloto Direct ATS explicitamente configurado. A configuração é manual, em código
-ou teste, e aceita no máximo cinco empresas; não há Company Registry nem
-descoberta automática de boards. Cada empresa é uma source independente
+Na Etapa 13E, Greenhouse passou a participar do discovery genérico como um
+piloto Direct ATS. Na Etapa 13F, a configuração manual saiu do código e passou
+para o Company Registry persistente no SQLite. Não há descoberta automática de
+boards. Cada empresa é uma source independente
 `greenhouse:<company_key>`, com orçamento de uma requisição, health isolado e
 observações `AUTHORITATIVE`. Um tenant com falha não bloqueia os demais.
 
@@ -288,6 +288,53 @@ Quando a mesma vaga já foi observada em uma fonte ampla, o dedup mantém uma s�
 oportunidade e todas as URLs observadas. A observação Greenhouse autoritativa
 pode assumir os dados automáticos primários e sua URL oficial sem trocar o ID
 interno, `first_seen_at`, histórico ou campos manuais do CRM.
+
+### Company Registry
+
+A tabela `tracked_companies` guarda uma identidade estável (`company_key`), nome,
+família ATS, identificador do tenant, estado enabled, prioridade e health. O
+registry começa vazio e o agente continua usando Jobicy, Remotive e We Work
+Remotely normalmente. Somente Greenhouse é executável nesta etapa; registros de
+outras famílias ficam preservados como unsupported, sem request e sem miss de
+lifecycle.
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.company_cli list --db data/job_agent.db
+
+PYTHONPATH=src python3 -m daniel_job_agent.company_cli add \
+  --db data/job_agent.db \
+  --key scaleops \
+  --name "ScaleOps" \
+  --ats greenhouse \
+  --identifier scaleops
+
+PYTHONPATH=src python3 -m daniel_job_agent.company_cli show scaleops \
+  --db data/job_agent.db
+
+PYTHONPATH=src python3 -m daniel_job_agent.company_cli update scaleops \
+  --db data/job_agent.db --priority 200
+
+PYTHONPATH=src python3 -m daniel_job_agent.company_cli disable scaleops \
+  --db data/job_agent.db
+
+PYTHONPATH=src python3 -m daniel_job_agent.company_cli enable scaleops \
+  --db data/job_agent.db
+```
+
+Prioridades maiores executam primeiro. Por segurança, no máximo 25 tenants
+Greenhouse habilitados entram em uma rodada; o restante é limitado de forma
+determinística. Sucesso zera `failure_count` e atualiza `last_checked_at` e
+`last_success_at`; falha incrementa o contador sem desabilitar a empresa.
+
+Demonstração offline, com banco temporário e sem requests:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.company_registry_demo
+```
+
+Provenance antigo como `greenhouse:manual-pilot` é preservado. Uma empresa
+adicionada como `scaleops` produzirá novas observações em
+`greenhouse:scaleops`; nenhuma equivalência é inferida automaticamente.
 
 A listagem pública fornece título, URL, localização e, com `content=true`, o
 conteúdo da descrição. Ela não fornece de forma estruturada e consistente

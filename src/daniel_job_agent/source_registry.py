@@ -161,11 +161,12 @@ def create_greenhouse_pilot_definitions(
     tenants: list[GreenhouseTenantConfig] | tuple[GreenhouseTenantConfig, ...],
     *,
     source_overrides: Mapping[str, JobSource] | None = None,
+    max_tenants: int = MAX_GREENHOUSE_PILOT_TENANTS,
 ) -> list[SourceDefinition]:
-    """Cria no máximo cinco definições tenant-scoped, sem persistir config."""
+    """Cria definições tenant-scoped; o piloto manual mantém limite cinco."""
 
-    if len(tenants) > MAX_GREENHOUSE_PILOT_TENANTS:
-        raise ValueError("Greenhouse pilot supports at most 5 tenants")
+    if len(tenants) > max_tenants:
+        raise ValueError(f"Greenhouse configuration supports at most {max_tenants} tenants")
     overrides = dict(source_overrides or {})
     definitions: list[SourceDefinition] = []
     for tenant in tenants:

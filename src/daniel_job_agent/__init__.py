@@ -12,6 +12,11 @@ from .crm import (
     LocalCRM,
     records_to_table,
 )
+from .company_registry import (
+    CompanyMonitoringSummary,
+    CompanyRegistry,
+    CompanyRegistrySnapshot,
+)
 
 from .discovery import (
     JobicyDiscoveryConfig,
@@ -25,6 +30,7 @@ from .models import (
     ApplicationStatus,
     ApplicationTracking,
     CandidateProfile,
+    CompanyRecord,
     JobLifecycleStatus,
     JobOpportunity,
     RoleFamily,
@@ -170,6 +176,10 @@ __all__ = [
     "BaseJobAdapter",
     "BatchIngestionResult",
     "CandidateProfile",
+    "CompanyMonitoringSummary",
+    "CompanyRecord",
+    "CompanyRegistry",
+    "CompanyRegistrySnapshot",
     "CRM_COLUMNS",
     "CRMRecord",
     "CRMRecordNotFound",

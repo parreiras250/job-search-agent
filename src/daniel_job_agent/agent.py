@@ -1,8 +1,14 @@
 """Orquestra discovery, pipeline e persistência sem duplicar suas regras."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable
+
+from .company_registry import (
+    CompanyMonitoringSummary,
+    CompanyRegistry,
+    CompanyRegistrySnapshot,
+)
 
 from .discovery import (
     JobicyDiscoveryConfig,
@@ -23,7 +29,11 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def create_broad_discovery(strategy: SearchStrategy | None = None) -> MultiSourceDiscovery:
+def create_broad_discovery(
+    strategy: SearchStrategy | None = None,
+    *,
+    repository: JobRepository | None = None,
+) -> MultiSourceDiscovery:
     """Cria o discovery real a partir da estratégia broad centralizada."""
 
     selected = strategy or create_default_search_strategy()
@@ -31,7 +41,7 @@ def create_broad_discovery(strategy: SearchStrategy | None = None) -> MultiSourc
         raise ValueError("Multi-source agent requires one query per source")
     jobicy = selected.jobicy_queries[0]
     remotive = selected.remotive_queries[0]
-    return MultiSourceDiscovery(
+    discovery = MultiSourceDiscovery(
         jobicy_config=JobicyDiscoveryConfig(
             geo=jobicy.geo,
             industry=jobicy.industry,
@@ -44,6 +54,12 @@ def create_broad_discovery(strategy: SearchStrategy | None = None) -> MultiSourc
             limit=remotive.limit,
         ),
     )
+    if repository is None:
+        return discovery
+    registry, _ = CompanyRegistry(repository).build_source_registry(
+        base_registry=discovery.registry
+    )
+    return MultiSourceDiscovery(registry=registry)
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +88,9 @@ class AgentRunResult:
     discovery: MultiSourceDiscoveryResult
     persistence: SyncResult
     lifecycle: LifecycleResult
+    company_monitoring: CompanyMonitoringSummary = field(
+        default_factory=CompanyMonitoringSummary
+    )
 
     @property
     def duration_seconds(self) -> float:
@@ -89,9 +108,16 @@ class DanielJobAgent:
         profile: CandidateProfile | None = None,
         clock: Callable[[], datetime] = _utc_now,
         lifecycle_policy: LifecyclePolicy = LifecyclePolicy(),
+        company_registry: CompanyRegistry | None = None,
     ) -> None:
         self.repository = repository
-        self.discovery = discovery or create_broad_discovery()
+        self.company_registry = company_registry or CompanyRegistry(repository)
+        self._company_snapshot: CompanyRegistrySnapshot | None = None
+        if discovery is None:
+            registry, self._company_snapshot = self.company_registry.build_source_registry()
+            self.discovery = MultiSourceDiscovery(registry=registry)
+        else:
+            self.discovery = discovery
         self.profile = profile or create_daniel_profile()
         self.clock = clock
         self.lifecycle_policy = lifecycle_policy
@@ -100,6 +126,11 @@ class DanielJobAgent:
         started_at = self.clock()
         discovery_result = self.discovery.run(self.profile)
         persistence_time = self.clock()
+        company_monitoring = self.company_registry.record_discovery(
+            discovery_result,
+            snapshot=self._company_snapshot,
+            now=persistence_time,
+        )
         persistence_result = sync_opportunities(
             discovery_result.pipeline,
             self.repository,
@@ -178,4 +209,5 @@ class DanielJobAgent:
             discovery=discovery_result,
             persistence=persistence_result,
             lifecycle=lifecycle_result,
+            company_monitoring=company_monitoring,
         )

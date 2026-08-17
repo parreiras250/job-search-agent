@@ -13,6 +13,7 @@ from typing import Iterable
 from .models import (
     ApplicationStatus,
     ApplicationTracking,
+    CompanyRecord,
     JobLifecycleStatus,
     JobOpportunity,
     RoleFamily,
@@ -118,7 +119,7 @@ _AUTOMATIC_COLUMNS = (
     "unknowns",
 )
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 @dataclass(frozen=True, slots=True)
@@ -321,6 +322,32 @@ class JobRepository:
             )
             """
         )
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tracked_companies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_key TEXT NOT NULL UNIQUE,
+                company_name TEXT NOT NULL,
+                careers_url TEXT,
+                ats_family TEXT NOT NULL,
+                ats_identifier TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                priority INTEGER NOT NULL DEFAULT 100,
+                remote_policy TEXT,
+                latam_evidence TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_checked_at TEXT,
+                last_success_at TEXT,
+                failure_count INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        self.connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tracked_companies_enabled_priority "
+            "ON tracked_companies(enabled, priority DESC, company_key)"
+        )
         self._migrate_schema()
         self.connection.commit()
 
@@ -428,6 +455,197 @@ class JobRepository:
             "SELECT COUNT(*) AS count FROM source_observations"
         ).fetchone()
         return int(row["count"])
+
+    @staticmethod
+    def _company_from_row(row: sqlite3.Row) -> CompanyRecord:
+        return CompanyRecord(
+            id=int(row["id"]),
+            company_key=row["company_key"],
+            company_name=row["company_name"],
+            careers_url=row["careers_url"],
+            ats_family=row["ats_family"],
+            ats_identifier=row["ats_identifier"],
+            enabled=bool(row["enabled"]),
+            priority=int(row["priority"]),
+            remote_policy=row["remote_policy"],
+            latam_evidence=row["latam_evidence"],
+            notes=row["notes"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+            last_checked_at=(
+                datetime.fromisoformat(row["last_checked_at"])
+                if row["last_checked_at"] else None
+            ),
+            last_success_at=(
+                datetime.fromisoformat(row["last_success_at"])
+                if row["last_success_at"] else None
+            ),
+            failure_count=int(row["failure_count"]),
+        )
+
+    def add_company(
+        self,
+        company_key: str,
+        company_name: str,
+        ats_family: str,
+        ats_identifier: str,
+        *,
+        enabled: bool = True,
+        priority: int = 100,
+        careers_url: str | None = None,
+        remote_policy: str | None = None,
+        latam_evidence: str | None = None,
+        notes: str | None = None,
+        now: datetime | None = None,
+    ) -> CompanyRecord:
+        timestamp = _as_utc(now or _utc_now())
+        company = CompanyRecord(
+            id=None,
+            company_key=company_key.strip().casefold(),
+            company_name=company_name.strip(),
+            ats_family=ats_family.strip().casefold(),
+            ats_identifier=ats_identifier.strip(),
+            enabled=enabled,
+            priority=priority,
+            careers_url=careers_url,
+            remote_policy=remote_policy,
+            latam_evidence=latam_evidence,
+            notes=notes,
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        try:
+            cursor = self.connection.execute(
+                """INSERT INTO tracked_companies (
+                   company_key, company_name, careers_url, ats_family,
+                   ats_identifier, enabled, priority, remote_policy,
+                   latam_evidence, notes, created_at, updated_at,
+                   failure_count
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (
+                    company.company_key, company.company_name, company.careers_url,
+                    company.ats_family, company.ats_identifier,
+                    int(company.enabled), company.priority, company.remote_policy,
+                    company.latam_evidence, company.notes,
+                    timestamp.isoformat(), timestamp.isoformat(),
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError(f"duplicate company_key: {company.company_key}") from exc
+        self.connection.commit()
+        stored = self.get_company(company.company_key)
+        assert stored is not None
+        return stored
+
+    def get_company(self, company_key: str) -> CompanyRecord | None:
+        row = self.connection.execute(
+            "SELECT * FROM tracked_companies WHERE company_key = ?",
+            (company_key.strip().casefold(),),
+        ).fetchone()
+        return self._company_from_row(row) if row else None
+
+    def list_companies(self, *, enabled_only: bool = False) -> list[CompanyRecord]:
+        where = "WHERE enabled = 1" if enabled_only else ""
+        rows = self.connection.execute(
+            f"SELECT * FROM tracked_companies {where} "
+            "ORDER BY priority DESC, company_key ASC"
+        ).fetchall()
+        return [self._company_from_row(row) for row in rows]
+
+    def update_company(
+        self,
+        company_key: str,
+        *,
+        company_name: str | None = None,
+        ats_family: str | None = None,
+        ats_identifier: str | None = None,
+        priority: int | None = None,
+        careers_url: str | None = None,
+        remote_policy: str | None = None,
+        latam_evidence: str | None = None,
+        notes: str | None = None,
+        now: datetime | None = None,
+    ) -> CompanyRecord:
+        current = self.get_company(company_key)
+        if current is None:
+            raise KeyError(f"unknown company_key: {company_key}")
+        timestamp = _as_utc(now or _utc_now())
+        updated = CompanyRecord(
+            id=current.id,
+            company_key=current.company_key,
+            company_name=(company_name if company_name is not None else current.company_name).strip(),
+            ats_family=(ats_family if ats_family is not None else current.ats_family).strip().casefold(),
+            ats_identifier=(ats_identifier if ats_identifier is not None else current.ats_identifier).strip(),
+            enabled=current.enabled,
+            priority=priority if priority is not None else current.priority,
+            careers_url=careers_url if careers_url is not None else current.careers_url,
+            remote_policy=remote_policy if remote_policy is not None else current.remote_policy,
+            latam_evidence=latam_evidence if latam_evidence is not None else current.latam_evidence,
+            notes=notes if notes is not None else current.notes,
+            created_at=current.created_at,
+            updated_at=timestamp,
+            last_checked_at=current.last_checked_at,
+            last_success_at=current.last_success_at,
+            failure_count=current.failure_count,
+        )
+        self.connection.execute(
+            """UPDATE tracked_companies SET
+               company_name = ?, careers_url = ?, ats_family = ?,
+               ats_identifier = ?, priority = ?, remote_policy = ?,
+               latam_evidence = ?, notes = ?, updated_at = ?
+               WHERE company_key = ?""",
+            (
+                updated.company_name, updated.careers_url, updated.ats_family,
+                updated.ats_identifier, updated.priority, updated.remote_policy,
+                updated.latam_evidence, updated.notes, timestamp.isoformat(),
+                updated.company_key,
+            ),
+        )
+        self.connection.commit()
+        return self.get_company(updated.company_key)  # type: ignore[return-value]
+
+    def _set_company_enabled(
+        self, company_key: str, enabled: bool, *, now: datetime | None = None
+    ) -> CompanyRecord:
+        if self.get_company(company_key) is None:
+            raise KeyError(f"unknown company_key: {company_key}")
+        timestamp = _as_utc(now or _utc_now()).isoformat()
+        self.connection.execute(
+            "UPDATE tracked_companies SET enabled = ?, updated_at = ? "
+            "WHERE company_key = ?",
+            (int(enabled), timestamp, company_key.strip().casefold()),
+        )
+        self.connection.commit()
+        return self.get_company(company_key)  # type: ignore[return-value]
+
+    def enable_company(self, company_key: str, *, now: datetime | None = None) -> CompanyRecord:
+        return self._set_company_enabled(company_key, True, now=now)
+
+    def disable_company(self, company_key: str, *, now: datetime | None = None) -> CompanyRecord:
+        return self._set_company_enabled(company_key, False, now=now)
+
+    def record_company_check(
+        self, company_key: str, *, succeeded: bool, now: datetime | None = None
+    ) -> CompanyRecord:
+        if self.get_company(company_key) is None:
+            raise KeyError(f"unknown company_key: {company_key}")
+        timestamp = _as_utc(now or _utc_now()).isoformat()
+        if succeeded:
+            self.connection.execute(
+                """UPDATE tracked_companies SET last_checked_at = ?,
+                   last_success_at = ?, failure_count = 0, updated_at = ?
+                   WHERE company_key = ?""",
+                (timestamp, timestamp, timestamp, company_key.strip().casefold()),
+            )
+        else:
+            self.connection.execute(
+                """UPDATE tracked_companies SET last_checked_at = ?,
+                   failure_count = failure_count + 1, updated_at = ?
+                   WHERE company_key = ?""",
+                (timestamp, timestamp, company_key.strip().casefold()),
+            )
+        self.connection.commit()
+        return self.get_company(company_key)  # type: ignore[return-value]
 
     @staticmethod
     def _observation_from_row(row: sqlite3.Row) -> SourceObservation:

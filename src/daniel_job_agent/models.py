@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from enum import Enum
+import re
 
 
 class ApplicationStatus(str, Enum):
@@ -59,6 +60,55 @@ class JobLifecycleStatus(str, Enum):
     POSSIBLY_CLOSED = "POSSIBLY_CLOSED"
     CLOSED = "CLOSED"
     UNKNOWN = "UNKNOWN"
+
+
+@dataclass(frozen=True, slots=True)
+class CompanyRecord:
+    """Empresa tenant-scoped monitorada pelo registry persistente."""
+
+    id: int | None
+    company_key: str
+    company_name: str
+    ats_family: str
+    ats_identifier: str
+    enabled: bool = True
+    priority: int = 100
+    careers_url: str | None = None
+    remote_policy: str | None = None
+    latam_evidence: str | None = None
+    notes: str | None = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_checked_at: datetime | None = None
+    last_success_at: datetime | None = None
+    failure_count: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.company_key or re.fullmatch(
+            r"[a-z0-9]+(?:[-_][a-z0-9]+)*", self.company_key
+        ) is None:
+            raise ValueError("company_key must be a normalized lowercase slug")
+        for name, value in (
+            ("company_name", self.company_name),
+            ("ats_family", self.ats_family),
+            ("ats_identifier", self.ats_identifier),
+        ):
+            if not value.strip():
+                raise ValueError(f"{name} cannot be empty")
+        if self.ats_family != self.ats_family.strip().casefold():
+            raise ValueError("ats_family must be normalized lowercase text")
+        if not 0 <= self.priority <= 1000:
+            raise ValueError("priority must be between 0 and 1000")
+        if self.failure_count < 0:
+            raise ValueError("failure_count cannot be negative")
+        for name in (
+            "created_at", "updated_at", "last_checked_at", "last_success_at"
+        ):
+            value = getattr(self, name)
+            if value is not None and (
+                value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value)
+            ):
+                raise ValueError(f"{name} must be timezone-aware UTC")
 
 
 @dataclass(slots=True)

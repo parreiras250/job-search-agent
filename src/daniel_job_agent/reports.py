@@ -86,6 +86,14 @@ class WeeklyReport:
     newly_closed_jobs: list[ReportOpportunity] = field(default_factory=list)
     reopened_jobs: list[ReportOpportunity] = field(default_factory=list)
     failure_summary: str | None = None
+    companies_tracked: int = 0
+    companies_enabled: int = 0
+    companies_executed: int = 0
+    companies_succeeded: int = 0
+    companies_failed: int = 0
+    companies_unsupported: int = 0
+    companies_limited: int = 0
+    company_top_failures: list[str] = field(default_factory=list)
 
     @property
     def duration_seconds(self) -> float:
@@ -221,6 +229,7 @@ def build_weekly_report(
         ]
 
     lifecycle = agent_result.lifecycle
+    companies = agent_result.company_monitoring
     one_source, multiple_sources = repository.observation_overlap_counts()
     return WeeklyReport(
         run_id=history.run_id, started_at=history.started_at,
@@ -245,6 +254,14 @@ def build_weekly_report(
         newly_closed_jobs=lifecycle_jobs(lifecycle.newly_closed_ids),
         reopened_jobs=lifecycle_jobs(lifecycle.reopened_ids),
         failure_summary=_safe_failure_summary(agent_result, history.sheets_sync_success),
+        companies_tracked=companies.tracked,
+        companies_enabled=companies.enabled,
+        companies_executed=companies.executed,
+        companies_succeeded=companies.succeeded,
+        companies_failed=companies.failed,
+        companies_unsupported=companies.unsupported,
+        companies_limited=companies.limited,
+        company_top_failures=companies.top_failures,
     )
 
 
@@ -291,6 +308,16 @@ def format_weekly_report(report: WeeklyReport) -> str:
             f"- **{source.name}: {state}**{detail}",
             f"  - Received: {source.received} | Converted: {source.converted} | Warnings: {source.warnings} | Errors: {source.errors}",
         ])
+    lines.extend([
+        "", "## Company monitoring", "",
+        f"- Tracked companies: {report.companies_tracked}",
+        f"- Enabled: {report.companies_enabled} | Executed: {report.companies_executed}",
+        f"- Succeeded: {report.companies_succeeded} | Failed: {report.companies_failed} | Unsupported: {report.companies_unsupported}",
+    ])
+    if report.companies_limited:
+        lines.append(f"- Limited by safety cap: {report.companies_limited}")
+    if report.company_top_failures:
+        lines.append("- Top failures: " + ", ".join(report.company_top_failures))
     lines.extend([
         "", "## Discovery", "",
         f"- Received: {report.jobs_received}",

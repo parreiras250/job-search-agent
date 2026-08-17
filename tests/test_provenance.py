@@ -17,6 +17,7 @@ from daniel_job_agent import (
     reconcile_lifecycle,
     sync_opportunities,
 )
+from daniel_job_agent.repository import SCHEMA_VERSION
 
 
 START = datetime(2026, 8, 16, 12, tzinfo=timezone.utc)
@@ -269,7 +270,8 @@ class ObservationMigrationTests(unittest.TestCase):
                 self.assertEqual(migrated.count(), 33)
                 self.assertEqual(migrated.observation_count(), 33)
                 self.assertEqual(
-                    migrated.connection.execute("PRAGMA user_version").fetchone()[0], 5
+                    migrated.connection.execute("PRAGMA user_version").fetchone()[0],
+                    SCHEMA_VERSION,
                 )
                 first = LocalCRM(migrated).list_records(application_status="APPLIED")[0]
                 self.assertEqual(first.notes, "migration note")

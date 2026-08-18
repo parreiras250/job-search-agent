@@ -1,0 +1,27 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "title": "Account Executive (Brazil)",
+      "location": "Brazil",
+      "department": "Sales",
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "descriptionPlain": "Own the sales cycle for customers in Brazil.",
+      "publishedAt": "2026-08-17T11:00:00Z",
+      "employmentType": "FullTime",
+      "jobUrl": "https://jobs.ashbyhq.com/replit/account-executive-brazil",
+      "applyUrl": "https://jobs.ashbyhq.com/replit/account-executive-brazil/application"
+    },
+    {
+      "title": "Product Designer",
+      "location": "San Francisco, CA",
+      "isRemote": false,
+      "workplaceType": "OnSite",
+      "publishedAt": "2026-08-15T11:00:00Z",
+      "employmentType": "FullTime",
+      "jobUrl": "https://jobs.ashbyhq.com/replit/product-designer",
+      "applyUrl": "https://jobs.ashbyhq.com/replit/product-designer/application"
+    }
+  ]
+}

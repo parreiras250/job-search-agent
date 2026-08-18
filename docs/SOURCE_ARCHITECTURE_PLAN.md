@@ -571,6 +571,25 @@ remain Source Registry publishers with observational authority by default. No
 new enum, registry ownership rule, scheduler budget or lifecycle semantic is
 introduced here. See `ASHBY_TENANT_RESEARCH.md`.
 
+### 13H.6 — Ashby Wave 1: direct company boards
+
+ElevenLabs and Replit are registered as independent `TENANT_BOARD` sources with
+`source_instance=ashby:elevenlabs` and `ashby:replit`. Both use the generic
+Ashby source and adapter, one request each, and `OBSERVATIONAL` lifecycle
+authority. Configuration supplies the verified employer name; LatamCent keeps
+its recruiting-publisher semantics and undisclosed-employer label.
+
+Direct company monitoring is deliberately excluded from `GLOBAL_SOURCE_ORDER`.
+The existing contribution baseline therefore remains the seven global or
+recruiting discovery sources, while discovery and provenance still account for
+each company tenant independently. This avoids a large contribution-model
+refactor before direct-monitoring metrics have their own presentation.
+
+`jobUrl` remains the canonical persisted URL. Ashby's distinct `applyUrl` is
+valuable for future application automation, but the v8 model has no safe second
+URL field. Adding one would require a model/schema migration, so Wave 1 records
+the limitation and keeps schema v8 rather than silently changing persistence.
+
 ### 13H — Lifecycle authority
 
 Expand the authoritative lifecycle policy beyond the bounded Greenhouse pilot

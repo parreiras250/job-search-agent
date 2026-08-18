@@ -145,3 +145,23 @@ and Replit.** Before registration, make one safe payload-shape validation per
 tenant, confirm employer identity and exact worker-location semantics, then add
 offline fixtures/tests. Do not add Vanta until the LATAM-territory ambiguity is
 resolved.
+
+## Wave 1 implementation decision — 13H.6
+
+ElevenLabs and Replit are now operational configurations over the generic
+Ashby components, not separate adapters. Their configured employer names are
+safe because each is the company's own board; LatamCent remains a recruiting
+publisher with no inferred client employer. All three tenants remain
+`OBSERVATIONAL`.
+
+The weekly increment is exactly two requests: one for ElevenLabs and one for
+Replit, with no pagination, retries or extra queries. Direct company boards are
+kept outside the global/recruiting contribution baseline until the reporting
+model can represent direct monitoring separately. Vanta is the next candidate
+only after location semantics are validated; all other researched tenants
+remain unimplemented.
+
+The API's `applyUrl` can differ from `jobUrl` and would matter to future
+application automation. The current v8 model has no dedicated field, so adding
+it requires an explicit schema proposal and migration. Wave 1 preserves
+`jobUrl`, documents this limitation, and does not change schema.

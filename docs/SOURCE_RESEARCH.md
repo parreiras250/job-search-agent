@@ -455,3 +455,16 @@ US/Canada/Europe-bound.
 No second recruiting publisher comparable to LatamCent passed the evidence
 threshold. The full table, negative evidence and two-request Wave 1 proposal are
 in [`ASHBY_TENANT_RESEARCH.md`](ASHBY_TENANT_RESEARCH.md).
+
+## 13H.6 — Ashby Wave 1 implementation
+
+ElevenLabs (`elevenlabs`) and Replit (`replit`) are now configured company-board
+tenants of the generic Ashby integration. Each adds one deterministic request
+per weekly execution, has independent provenance, and remains observational.
+Tenant identity never implies Brazil eligibility; the common geography gates
+continue to evaluate every posting. Vanta, Deel, Supabase, ClickHouse and
+incident.io are not implemented.
+
+Offline fixtures follow only the documented Ashby posting contract. No tenant
+API was called during implementation or tests. `applyUrl` remains unpersisted
+pending an explicit schema proposal; schema stays at version 8.

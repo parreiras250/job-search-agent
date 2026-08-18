@@ -92,7 +92,14 @@ def definition(
 class SourceRegistryTests(unittest.TestCase):
     def test_default_registry_contains_current_sources(self) -> None:
         registry = create_default_source_registry()
-        self.assertEqual([item.source_id for item in registry.list_all()], ["jobicy", "remotive", "weworkremotely", "himalayas", "remoteok", "getonboard", "latamcent"])
+        self.assertEqual(
+            [item.source_id for item in registry.list_all()],
+            [
+                "jobicy", "remotive", "weworkremotely", "himalayas",
+                "remoteok", "getonboard", "latamcent", "elevenlabs",
+                "replit",
+            ],
+        )
         self.assertEqual(
             [item.default_config for item in registry.list_all()],
             [
@@ -107,6 +114,20 @@ class SourceRegistryTests(unittest.TestCase):
                     "publisher_name": "LatamCent",
                     "board_name": "latamcent",
                     "employer_name": None,
+                    "include_compensation": True,
+                },
+                {
+                    "tenant_key": "elevenlabs",
+                    "publisher_name": "ElevenLabs",
+                    "board_name": "elevenlabs",
+                    "employer_name": "ElevenLabs",
+                    "include_compensation": True,
+                },
+                {
+                    "tenant_key": "replit",
+                    "publisher_name": "Replit",
+                    "board_name": "replit",
+                    "employer_name": "Replit",
                     "include_compensation": True,
                 },
             ],

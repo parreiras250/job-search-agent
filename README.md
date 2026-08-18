@@ -1553,7 +1553,9 @@ mas sua qualidade depende da calibração de Career Fit e dos hard gates.
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
 - O registry operacional contém Jobicy, Remotive, We Work Remotely, Himalayas,
-  RemoteOK, Get on Board e LatamCent/Ashby por padrão.
+  RemoteOK, Get on Board e três tenants Ashby: LatamCent, ElevenLabs e Replit.
+  Os dois últimos são direct company boards e permanecem fora da baseline de
+  contribuição marginal das fontes globais.
   Greenhouse só entra no discovery genérico quando tenants do piloto são
   configurados explicitamente (máximo de cinco); Lever permanece isolado.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as
@@ -1606,11 +1608,22 @@ mas sua qualidade depende da calibração de Career Fit e dos hard gates.
   usa o texto de `location`; a unificação desses dois dados fica para uma etapa
   futura.
 
-## Próxima pequena etapa sugerida
+## Ashby Wave 1
 
-Executar manualmente a demo LatamCent para validar o payload real antes de
-qualquer ampliação de tenants Ashby. A pesquisa comparativa está em
-[`docs/LATAM_RECRUITING_SOURCES.md`](docs/LATAM_RECRUITING_SOURCES.md).
+ElevenLabs e Replit reutilizam o mesmo `AshbyJobSource` e `AshbyJobAdapter` de
+LatamCent, com identidades `ashby:elevenlabs` e `ashby:replit`. Cada board usa
+uma requisição por execução e autoridade lifecycle `OBSERVATIONAL`; nenhuma
+regra de score ou elegibilidade depende da empresa. Para validação manual:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.ashby_wave1_demo
+```
+
+A versão offline usa as fixtures pequenas e não acessa a rede:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.ashby_wave1_demo --offline
+```
 
 HireLATAM e Near permanecem `REQUEST_ACCESS`; Somewhere fica `MONITOR` até haver
 acesso oficial ao workspace RecruitCRM. Gupy foi movida para `DEFER / LOW

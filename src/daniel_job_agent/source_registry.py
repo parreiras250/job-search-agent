@@ -101,6 +101,15 @@ class AshbyTenantConfig:
             raise ValueError("priority cannot be negative")
 
 
+DEFAULT_ASHBY_TENANTS = (
+    AshbyTenantConfig("latamcent", "LatamCent", "latamcent"),
+    AshbyTenantConfig(
+        "elevenlabs", "ElevenLabs", "elevenlabs", employer_name="ElevenLabs"
+    ),
+    AshbyTenantConfig("replit", "Replit", "replit", employer_name="Replit"),
+)
+
+
 @dataclass(frozen=True, slots=True)
 class SourceCapabilities:
     global_search: bool = False
@@ -463,13 +472,8 @@ def create_default_source_registry(
         remoteok_source, getonboard_source,
     ))
     configured_ashby = ashby_tenants if ashby_tenants is not None else (
-        () if explicit_source_overrides and ashby_sources is None else (
-            AshbyTenantConfig(
-                tenant_key="latamcent",
-                publisher_name="LatamCent",
-                board_name="latamcent",
-            ),
-        )
+        () if explicit_source_overrides and ashby_sources is None
+        else DEFAULT_ASHBY_TENANTS
     )
     definitions.extend(
         create_ashby_definitions(configured_ashby, source_overrides=ashby_sources)

@@ -1,4 +1,4 @@
-"""Testes offline do componente Ashby e do tenant LatamCent."""
+"""Testes offline do componente Ashby e dos três tenants configurados."""
 
 import json
 import socket
@@ -30,14 +30,20 @@ from daniel_job_agent import (
     reconcile_lifecycle,
     sync_opportunities,
 )
-from daniel_job_agent.sources import HttpResponse
+from daniel_job_agent.sources import HttpResponse, SourceResult
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ashby_latamcent_jobs.json"
+ELEVENLABS_FIXTURE = Path(__file__).parent / "fixtures" / "ashby_elevenlabs_jobs.json"
+REPLIT_FIXTURE = Path(__file__).parent / "fixtures" / "ashby_replit_jobs.json"
 
 
 def fixture_payload():
     return json.loads(FIXTURE.read_text())
+
+
+def tenant_payload(path):
+    return json.loads(path.read_text())
 
 
 class FakeTransport:
@@ -153,7 +159,7 @@ class LatamCentRegistryTests(unittest.TestCase):
     def test_default_registry_has_latamcent_ashby_identity_and_one_request_budget(self) -> None:
         registry = create_default_source_registry()
         definition = registry.get("latamcent")
-        self.assertEqual(len(registry.enabled_sources()), 7)
+        self.assertEqual(len(registry.enabled_sources()), 9)
         self.assertEqual(definition.source_family, "ashby")
         self.assertEqual(definition.source_instance, "ashby:latamcent")
         self.assertEqual(definition.source_type, SourceType.TENANT_BOARD)
@@ -162,6 +168,57 @@ class LatamCentRegistryTests(unittest.TestCase):
         self.assertEqual(definition.default_config["board_name"], "latamcent")
         self.assertIsNone(definition.default_config["employer_name"])
         self.assertEqual(GLOBAL_SOURCE_ORDER[-1], "latamcent")
+
+    def test_wave1_company_boards_have_independent_observational_identities(self) -> None:
+        registry = create_default_source_registry()
+        elevenlabs = registry.get("elevenlabs")
+        replit = registry.get("replit")
+        self.assertEqual(
+            (elevenlabs.source_family, elevenlabs.source_instance),
+            ("ashby", "ashby:elevenlabs"),
+        )
+        self.assertEqual(
+            (replit.source_family, replit.source_instance),
+            ("ashby", "ashby:replit"),
+        )
+        for definition, company in ((elevenlabs, "ElevenLabs"), (replit, "Replit")):
+            with self.subTest(company=company):
+                self.assertEqual(definition.request_budget, 1)
+                self.assertEqual(
+                    definition.capabilities.lifecycle_authority,
+                    LifecycleAuthority.OBSERVATIONAL,
+                )
+                self.assertEqual(definition.default_config["employer_name"], company)
+                self.assertIs(type(definition.adapter_factory()), AshbyJobAdapter)
+        self.assertNotIn("elevenlabs", GLOBAL_SOURCE_ORDER)
+        self.assertNotIn("replit", GLOBAL_SOURCE_ORDER)
+
+    def test_wave1_real_contract_fixtures_convert_without_warnings(self) -> None:
+        for path, company in (
+            (ELEVENLABS_FIXTURE, "ElevenLabs"),
+            (REPLIT_FIXTURE, "Replit"),
+        ):
+            with self.subTest(company=company):
+                batch = ingest_batch(
+                    tenant_payload(path)["jobs"],
+                    AshbyJobAdapter(company, employer_name=company),
+                )
+                self.assertEqual((batch.converted_count, batch.warning_count), (2, 0))
+                self.assertEqual({job.company for job in batch.opportunities}, {company})
+
+    def test_tenant_does_not_infer_brazil_eligibility_or_worldwide(self) -> None:
+        record = dict(tenant_payload(ELEVENLABS_FIXTURE)["jobs"][0])
+        record.update(title="Account Executive", location="United States")
+        result = AshbyJobAdapter("ElevenLabs", employer_name="ElevenLabs").adapt(record)
+        self.assertIsNone(result.opportunity.brazil_eligible)
+        pipeline = process_opportunities([result.opportunity], create_daniel_profile())
+        self.assertNotEqual(pipeline.ranked_opportunities[0].retention_decision.value, "KEEP")
+
+        record.update(location="Remote")
+        remote = AshbyJobAdapter("ElevenLabs", employer_name="ElevenLabs").adapt(record)
+        self.assertIsNone(remote.opportunity.brazil_eligible)
+        remote_pipeline = process_opportunities([remote.opportunity], create_daniel_profile())
+        self.assertNotEqual(remote_pipeline.ranked_opportunities[0].eligibility.value, "ELIGIBLE")
 
     def test_generic_factory_supports_another_tenant(self) -> None:
         definitions = create_ashby_definitions([
@@ -175,7 +232,6 @@ class LatamCentRegistryTests(unittest.TestCase):
             def __init__(self, result): self.result = result
             def fetch(self): return self.result
 
-        from daniel_job_agent.sources import SourceResult
         failed = create_ashby_definitions(
             [AshbyTenantConfig("failed", "Failed", "failed")],
             source_overrides={"failed": StubSource(SourceResult(SourceStatus.TIMEOUT, [], "timeout"))},
@@ -187,6 +243,73 @@ class LatamCentRegistryTests(unittest.TestCase):
         result = MultiSourceDiscovery(registry=SourceRegistry([failed, good])).run(create_daniel_profile())
         self.assertEqual(result.sources_failed, ["Failed"])
         self.assertEqual(result.jobs_converted_by_source["LatamCent"], 1)
+
+    def test_wave1_tenant_failures_are_isolated_in_both_directions(self) -> None:
+        class StubSource:
+            def __init__(self, result): self.result = result
+            def fetch(self): return self.result
+
+        configs = {
+            "elevenlabs": AshbyTenantConfig(
+                "elevenlabs", "ElevenLabs", "elevenlabs", "ElevenLabs"
+            ),
+            "replit": AshbyTenantConfig("replit", "Replit", "replit", "Replit"),
+        }
+        fixtures = {
+            "elevenlabs": tenant_payload(ELEVENLABS_FIXTURE)["jobs"][0],
+            "replit": tenant_payload(REPLIT_FIXTURE)["jobs"][0],
+        }
+        for good_key, failed_key in (
+            ("elevenlabs", "replit"), ("replit", "elevenlabs")
+        ):
+            with self.subTest(good=good_key):
+                definitions = create_ashby_definitions(
+                    [configs[good_key], configs[failed_key]],
+                    source_overrides={
+                        good_key: StubSource(SourceResult(
+                            SourceStatus.SUCCESS, [fixtures[good_key]]
+                        )),
+                        failed_key: StubSource(SourceResult(
+                            SourceStatus.TIMEOUT, [], "timeout"
+                        )),
+                    },
+                )
+                result = MultiSourceDiscovery(registry=SourceRegistry(definitions)).run(
+                    create_daniel_profile()
+                )
+                self.assertEqual(
+                    result.sources_succeeded, [configs[good_key].publisher_name]
+                )
+                self.assertEqual(
+                    result.sources_failed, [configs[failed_key].publisher_name]
+                )
+                self.assertEqual(result.source_executions_by_id[good_key].converted, 1)
+
+    def test_failed_wave1_tenant_does_not_record_lifecycle_miss(self) -> None:
+        definition = create_ashby_definitions([
+            AshbyTenantConfig("replit", "Replit", "replit", "Replit")
+        ])[0]
+        job = definition.adapter_factory().adapt(
+            tenant_payload(REPLIT_FIXTURE)["jobs"][0]
+        ).opportunity
+        job.source_id = definition.source_id
+        job.source_family = definition.source_family
+        job.source_instance = definition.source_instance
+        job.source_type = definition.source_type.value
+        job.lifecycle_authority = definition.capabilities.lifecycle_authority.value
+        pipeline = process_opportunities([job], create_daniel_profile())
+        with JobRepository(":memory:") as repository:
+            sync_opportunities(pipeline, repository)
+            lifecycle = reconcile_lifecycle(
+                repository,
+                seen_internal_ids=set(),
+                successful_sources=set(),
+                successful_source_identities={
+                    ("ashby", "ashby:elevenlabs"),
+                },
+                now=datetime(2026, 8, 18, tzinfo=timezone.utc),
+            )
+            self.assertEqual(lifecycle.misses_recorded, 0)
 
     def test_pipeline_uses_existing_decisions_without_scoring_changes(self) -> None:
         batch = ingest_batch(fixture_payload()["jobs"], AshbyJobAdapter("LatamCent"))
@@ -240,6 +363,36 @@ class LatamCentRegistryTests(unittest.TestCase):
             self.assertEqual(
                 repository.get(stored.internal_id).opportunity.lifecycle_status,
                 JobLifecycleStatus.OPEN,
+            )
+
+    def test_wwr_and_elevenlabs_duplicate_preserve_two_observations(self) -> None:
+        url = "https://example.com/jobs/strategic-ae-brazil"
+        elevenlabs = AshbyJobAdapter("ElevenLabs", employer_name="ElevenLabs").adapt({
+            **tenant_payload(ELEVENLABS_FIXTURE)["jobs"][0], "jobUrl": url,
+        }).opportunity
+        elevenlabs.source_id, elevenlabs.source_family = "elevenlabs", "ashby"
+        elevenlabs.source_instance = "ashby:elevenlabs"
+        elevenlabs.source_type = "TENANT_BOARD"
+        elevenlabs.lifecycle_authority = "OBSERVATIONAL"
+        wwr = JobOpportunity(
+            company="ElevenLabs", role=elevenlabs.role, job_url=url,
+            source="We Work Remotely", location="Brazil", remote=True,
+            brazil_eligible=None,
+            source_id="weworkremotely", source_family="weworkremotely",
+            source_instance="weworkremotely:sales-marketing", source_type="FEED",
+            lifecycle_authority="OBSERVATIONAL",
+        )
+        pipeline = process_opportunities([wwr, elevenlabs], create_daniel_profile())
+        self.assertEqual(
+            (pipeline.unique_opportunities, pipeline.duplicates_detected), (1, 1)
+        )
+        with JobRepository(":memory:") as repository:
+            sync_opportunities(pipeline, repository)
+            stored = repository.list_all()[0]
+            self.assertEqual(repository.observation_count(), 2)
+            self.assertEqual(
+                {item.source_instance for item in repository.get_observations(stored.internal_id)},
+                {"weworkremotely:sales-marketing", "ashby:elevenlabs"},
             )
 
 

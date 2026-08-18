@@ -1,0 +1,40 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "title": "Strategic Account Executive - Brazil",
+      "location": "Brazil",
+      "department": "Go to Market",
+      "team": "Sales",
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "descriptionPlain": "Build strategic customer relationships in Brazil.",
+      "publishedAt": "2026-08-17T10:00:00Z",
+      "employmentType": "FullTime",
+      "jobUrl": "https://jobs.ashbyhq.com/elevenlabs/strategic-ae-brazil",
+      "applyUrl": "https://jobs.ashbyhq.com/elevenlabs/strategic-ae-brazil/application",
+      "compensation": {
+        "summaryComponents": [
+          {
+            "compensationType": "Salary",
+            "interval": "1 YEAR",
+            "currencyCode": "USD",
+            "minValue": 90000,
+            "maxValue": 120000
+          }
+        ]
+      }
+    },
+    {
+      "title": "Machine Learning Engineer",
+      "location": "London, United Kingdom",
+      "isRemote": false,
+      "workplaceType": "OnSite",
+      "descriptionPlain": "Develop speech models.",
+      "publishedAt": "2026-08-16T10:00:00Z",
+      "employmentType": "FullTime",
+      "jobUrl": "https://jobs.ashbyhq.com/elevenlabs/ml-engineer",
+      "applyUrl": "https://jobs.ashbyhq.com/elevenlabs/ml-engineer/application"
+    }
+  ]
+}

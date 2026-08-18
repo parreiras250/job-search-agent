@@ -143,7 +143,11 @@ class CompanyRegistryGenerationTests(unittest.TestCase):
             registry, snapshot = CompanyRegistry(repository).build_source_registry()
             self.assertEqual(
                 [item.source_id for item in registry.list_all()],
-            ["jobicy", "remotive", "weworkremotely", "himalayas", "remoteok", "getonboard", "latamcent"],
+                [
+                    "jobicy", "remotive", "weworkremotely", "himalayas",
+                    "remoteok", "getonboard", "latamcent", "elevenlabs",
+                    "replit",
+                ],
             )
             self.assertEqual(snapshot.tracked, 0)
 

@@ -299,3 +299,12 @@ contribution.
 
 In parallel, Daniel can send a non-technical access request to HireLATAM and
 Near. Those requests do not block 13H.4.
+
+## 13H.5 follow-up: Ashby tenant expansion
+
+The follow-up study found no second agency/recruiting Ashby publisher with the
+same evidence quality as LatamCent. Fifteen confirmed company tenants were
+evaluated separately. ElevenLabs and Replit have the strongest current
+Brazil/LATAM GTM evidence and form the recommended two-tenant future pilot;
+Vanta remains ambiguous because a LATAM territory title does not establish
+worker location. Details: [`ASHBY_TENANT_RESEARCH.md`](ASHBY_TENANT_RESEARCH.md).

@@ -557,6 +557,20 @@ attribution requirements nor a separate posting ID. Unknown fields are ignored,
 missing optional data remains unknown, and compensation is read only from the
 documented salary summary components. Schema remains version 8.
 
+### 13H.5 — Ashby tenant expansion research (documentation only)
+
+A bounded study confirmed 15 public company tenants and recommends only
+ElevenLabs and Replit for a future Wave 1. Their current board evidence includes
+explicit Brazil/LATAM target roles. This is a +2 requests/week proposal, not a
+runtime change. Vanta remains pending because a LATAM sales territory does not
+prove Brazil worker eligibility.
+
+Company tenants may eventually be represented through Company Registry after
+employer identity and snapshot completeness are validated. Recruiting tenants
+remain Source Registry publishers with observational authority by default. No
+new enum, registry ownership rule, scheduler budget or lifecycle semantic is
+introduced here. See `ASHBY_TENANT_RESEARCH.md`.
+
 ### 13H — Lifecycle authority
 
 Expand the authoritative lifecycle policy beyond the bounded Greenhouse pilot

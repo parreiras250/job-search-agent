@@ -440,3 +440,18 @@ authorized agency feed becomes available, decide whether to add the type or a
 The next validation is a manual LatamCent demo against the real board. HireLATAM
 and Near access requests can proceed independently; Somewhere remains monitored
 and Gupy remains deferred.
+
+## 13H.5 — Ashby tenant expansion research
+
+The bounded 2026-08-18 study confirmed 15 company tenants without registering
+any of them. ElevenLabs and Replit are the only Wave 1 recommendations because
+their current public-board evidence explicitly includes Brazil/LATAM target
+roles. Vanta is promising but `Account Executive, LatAm` may describe sales
+territory rather than worker location; it remains P1 pending exact payload
+validation. High-density boards such as Airbyte, Linear, Attio, Ashby,
+Perplexity and Ramp are deferred because their current GTM locations are
+US/Canada/Europe-bound.
+
+No second recruiting publisher comparable to LatamCent passed the evidence
+threshold. The full table, negative evidence and two-request Wave 1 proposal are
+in [`ASHBY_TENANT_RESEARCH.md`](ASHBY_TENANT_RESEARCH.md).

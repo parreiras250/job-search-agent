@@ -12,6 +12,7 @@ from daniel_job_agent import (
     AshbyJobAdapter,
     AshbyJobSource,
     AshbyTenantConfig,
+    CompanyRegistry,
     GLOBAL_SOURCE_ORDER,
     JobOpportunity,
     JobLifecycleStatus,
@@ -24,11 +25,11 @@ from daniel_job_agent import (
     build_ashby_jobs_url,
     create_ashby_definitions,
     create_daniel_profile,
-    create_default_source_registry,
     ingest_batch,
     process_opportunities,
     reconcile_lifecycle,
     sync_opportunities,
+    seed_ashby_wave1,
 )
 from daniel_job_agent.sources import HttpResponse, SourceResult
 
@@ -44,6 +45,13 @@ def fixture_payload():
 
 def tenant_payload(path):
     return json.loads(path.read_text())
+
+
+def wave1_registry():
+    with JobRepository(":memory:") as repository:
+        seed_ashby_wave1(repository)
+        registry, _ = CompanyRegistry(repository).build_source_registry()
+        return registry
 
 
 class FakeTransport:
@@ -157,7 +165,7 @@ class AshbyAdapterTests(unittest.TestCase):
 
 class LatamCentRegistryTests(unittest.TestCase):
     def test_default_registry_has_latamcent_ashby_identity_and_one_request_budget(self) -> None:
-        registry = create_default_source_registry()
+        registry = wave1_registry()
         definition = registry.get("latamcent")
         self.assertEqual(len(registry.enabled_sources()), 9)
         self.assertEqual(definition.source_family, "ashby")
@@ -170,7 +178,7 @@ class LatamCentRegistryTests(unittest.TestCase):
         self.assertEqual(GLOBAL_SOURCE_ORDER[-1], "latamcent")
 
     def test_wave1_company_boards_have_independent_observational_identities(self) -> None:
-        registry = create_default_source_registry()
+        registry = wave1_registry()
         elevenlabs = registry.get("elevenlabs")
         replit = registry.get("replit")
         self.assertEqual(

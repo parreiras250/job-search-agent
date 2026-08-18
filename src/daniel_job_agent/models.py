@@ -6,6 +6,11 @@ from enum import Enum
 import re
 
 
+DIRECT_EMPLOYER = "DIRECT_EMPLOYER"
+RECRUITING_PUBLISHER = "RECRUITING_PUBLISHER"
+PUBLISHER_MODELS = frozenset({DIRECT_EMPLOYER, RECRUITING_PUBLISHER})
+
+
 class ApplicationStatus(str, Enum):
     """Etapas que Daniel pode registrar manualmente no processo seletivo."""
 
@@ -71,6 +76,7 @@ class CompanyRecord:
     company_name: str
     ats_family: str
     ats_identifier: str
+    publisher_model: str = DIRECT_EMPLOYER
     enabled: bool = True
     priority: int = 100
     careers_url: str | None = None
@@ -97,6 +103,10 @@ class CompanyRecord:
                 raise ValueError(f"{name} cannot be empty")
         if self.ats_family != self.ats_family.strip().casefold():
             raise ValueError("ats_family must be normalized lowercase text")
+        if self.publisher_model not in PUBLISHER_MODELS:
+            raise ValueError(
+                "publisher_model must be DIRECT_EMPLOYER or RECRUITING_PUBLISHER"
+            )
         if not 0 <= self.priority <= 1000:
             raise ValueError("priority must be between 0 and 1000")
         if self.failure_count < 0:

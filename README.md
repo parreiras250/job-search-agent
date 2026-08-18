@@ -292,11 +292,11 @@ interno, `first_seen_at`, histórico ou campos manuais do CRM.
 ### Company Registry
 
 A tabela `tracked_companies` guarda uma identidade estável (`company_key`), nome,
-família ATS, identificador do tenant, estado enabled, prioridade e health. O
-registry começa vazio e o agente continua usando Jobicy, Remotive e We Work
-Remotely normalmente. Somente Greenhouse é executável nesta etapa; registros de
-outras famílias ficam preservados como unsupported, sem request e sem miss de
-lifecycle.
+família ATS, identificador do tenant, `publisher_model`, estado enabled,
+prioridade e health. Greenhouse e Ashby são executáveis; outras famílias ficam
+preservadas como unsupported, sem request e sem miss de lifecycle. O registry
+começa vazio e o runtime default mantém somente as seis fontes globais até que
+tenants sejam cadastrados explicitamente.
 
 ```bash
 PYTHONPATH=src python3 -m daniel_job_agent.company_cli list --db data/job_agent.db
@@ -306,7 +306,11 @@ PYTHONPATH=src python3 -m daniel_job_agent.company_cli add \
   --key scaleops \
   --name "ScaleOps" \
   --ats greenhouse \
-  --identifier scaleops
+  --identifier scaleops \
+  --publisher-model direct-employer
+
+PYTHONPATH=src python3 -m daniel_job_agent.company_cli seed-ashby-wave1 \
+  --db data/job_agent.db
 
 PYTHONPATH=src python3 -m daniel_job_agent.company_cli show scaleops \
   --db data/job_agent.db
@@ -321,10 +325,16 @@ PYTHONPATH=src python3 -m daniel_job_agent.company_cli enable scaleops \
   --db data/job_agent.db
 ```
 
+`DIRECT_EMPLOYER` faz o adapter usar a organização como employer.
+`RECRUITING_PUBLISHER` preserva employer desconhecido quando o payload não o
+informa. O seed Ashby é idempotente: cria LatamCent, ElevenLabs e Replit apenas
+quando ausentes e nunca sobrescreve ajustes manuais.
+
 Prioridades maiores executam primeiro. Por segurança, no máximo 25 tenants
-Greenhouse habilitados entram em uma rodada; o restante é limitado de forma
-determinística. Sucesso zera `failure_count` e atualiza `last_checked_at` e
-`last_success_at`; falha incrementa o contador sem desabilitar a empresa.
+habilitados entram em uma rodada, somando Greenhouse, Ashby e futuras famílias
+executáveis; o restante é limitado deterministicamente. Sucesso zera
+`failure_count` e atualiza `last_checked_at` e `last_success_at`; falha incrementa
+o contador sem desabilitar a empresa.
 
 Demonstração offline, com banco temporário e sem requests:
 
@@ -1552,12 +1562,10 @@ mas sua qualidade depende da calibração de Career Fit e dos hard gates.
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- O registry operacional contém Jobicy, Remotive, We Work Remotely, Himalayas,
-  RemoteOK, Get on Board e três tenants Ashby: LatamCent, ElevenLabs e Replit.
-  Os dois últimos são direct company boards e permanecem fora da baseline de
-  contribuição marginal das fontes globais.
-  Greenhouse só entra no discovery genérico quando tenants do piloto são
-  configurados explicitamente (máximo de cinco); Lever permanece isolado.
+- O registry default contém apenas Jobicy, Remotive, We Work Remotely,
+  Himalayas, RemoteOK e Get on Board. Greenhouse e Ashby entram pelo Company
+  Registry persistente. ElevenLabs e Replit permanecem fora da baseline de
+  contribuição marginal global; Lever continua unsupported no registry.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as
   respostas de listagem não o fornecem de forma confiável.
 - Lever suporta apenas as bases global e EU documentadas; não há seleção

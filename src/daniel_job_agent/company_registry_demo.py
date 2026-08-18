@@ -3,7 +3,7 @@
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
-from .company_registry import CompanyRegistry
+from .company_registry import CompanyRegistry, seed_ashby_wave1
 from .repository import JobRepository
 
 
@@ -11,7 +11,8 @@ def main() -> None:
     with TemporaryDirectory() as directory:
         with JobRepository(Path(directory) / "company-registry-demo.db") as repository:
             repository.add_company("scaleops", "ScaleOps", "greenhouse", "scaleops")
-            repository.add_company("future-ashby", "Future Ashby", "ashby", "future")
+            seed_ashby_wave1(repository)
+            repository.add_company("fake-lever", "Fake Lever", "lever", "fake")
             repository.add_company("disabled", "Disabled Co", "greenhouse", "disabled")
             repository.disable_company("disabled")
 
@@ -21,11 +22,18 @@ def main() -> None:
             for company in repository.list_companies():
                 if not company.enabled:
                     state = "skipped (disabled)"
-                elif company.ats_family != "greenhouse":
+                elif company.ats_family not in {"greenhouse", "ashby"}:
                     state = "skipped (unsupported)"
                 else:
-                    state = f"generated {company.ats_family}:{company.company_key}"
-                print(f"- {company.company_name}: {state}")
+                    source_id = (
+                        company.company_key
+                        if company.ats_family == "ashby"
+                        else f"greenhouse:{company.company_key}"
+                    )
+                    state = f"generated {source_id}"
+                print(
+                    f"- {company.company_name} [{company.publisher_model}]: {state}"
+                )
             print(
                 f"Tracked: {snapshot.tracked} | Enabled: {snapshot.enabled} | "
                 f"Generated: {len(definitions)} | "

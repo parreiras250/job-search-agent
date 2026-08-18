@@ -96,8 +96,7 @@ class SourceRegistryTests(unittest.TestCase):
             [item.source_id for item in registry.list_all()],
             [
                 "jobicy", "remotive", "weworkremotely", "himalayas",
-                "remoteok", "getonboard", "latamcent", "elevenlabs",
-                "replit",
+                "remoteok", "getonboard",
             ],
         )
         self.assertEqual(
@@ -109,27 +108,6 @@ class SourceRegistryTests(unittest.TestCase):
                 {"q": "sales", "sort": "recent", "page": 1},
                 {"feed_url": "https://remoteok.com/api"},
                 {"query": "sales", "page": 1, "per_page": 20},
-                {
-                    "tenant_key": "latamcent",
-                    "publisher_name": "LatamCent",
-                    "board_name": "latamcent",
-                    "employer_name": None,
-                    "include_compensation": True,
-                },
-                {
-                    "tenant_key": "elevenlabs",
-                    "publisher_name": "ElevenLabs",
-                    "board_name": "elevenlabs",
-                    "employer_name": "ElevenLabs",
-                    "include_compensation": True,
-                },
-                {
-                    "tenant_key": "replit",
-                    "publisher_name": "Replit",
-                    "board_name": "replit",
-                    "employer_name": "Replit",
-                    "include_compensation": True,
-                },
             ],
         )
 
@@ -144,6 +122,12 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertEqual([item.source_id for item in registry.enabled_sources()], ["alpha", "beta"])
         with self.assertRaisesRegex(ValueError, "duplicate source_id"):
             registry.register(first)
+        duplicate_instance, _ = definition(
+            "gamma", SourceType.FEED, result(), family=first.source_family,
+            instance=first.source_instance,
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate source_instance"):
+            registry.register(duplicate_instance)
 
     def test_capabilities_validate_global_tenant_conflict(self) -> None:
         with self.assertRaises(ValueError):

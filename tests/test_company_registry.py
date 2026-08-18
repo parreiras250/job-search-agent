@@ -2,30 +2,40 @@
 
 import tempfile
 import unittest
+import sqlite3
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
+from io import StringIO
 from pathlib import Path
 
 from daniel_job_agent import (
     AgentRunHistory,
     ApplicationStatus,
+    AshbyJobAdapter,
+    AshbyTenantConfig,
     CompanyRegistry,
+    DIRECT_EMPLOYER,
     DanielJobAgent,
     JobOpportunity,
     JobRepository,
     LifecycleAuthority,
     LocalCRM,
     MultiSourceDiscovery,
+    RECRUITING_PUBLISHER,
     SourceRegistry,
     SourceResult,
     SourceStatus,
     build_weekly_report,
+    create_ashby_definitions,
     create_daniel_profile,
     format_weekly_report,
     process_opportunities,
     reconcile_lifecycle,
     sync_opportunities,
+    seed_ashby_wave1,
 )
 from daniel_job_agent.repository import SCHEMA_VERSION
+from daniel_job_agent.company_cli import main as company_cli_main
 
 
 NOW = datetime(2026, 8, 17, 12, tzinfo=timezone.utc)
@@ -62,6 +72,51 @@ def manual_pilot_job() -> JobOpportunity:
 
 
 class CompanyPersistenceTests(unittest.TestCase):
+    def test_v8_company_row_migrates_to_direct_employer_idempotently(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "legacy-v8.db"
+            connection = sqlite3.connect(path)
+            connection.execute(
+                """CREATE TABLE tracked_companies (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   company_key TEXT NOT NULL UNIQUE,
+                   company_name TEXT NOT NULL,
+                   careers_url TEXT,
+                   ats_family TEXT NOT NULL,
+                   ats_identifier TEXT NOT NULL,
+                   enabled INTEGER NOT NULL DEFAULT 1,
+                   priority INTEGER NOT NULL DEFAULT 100,
+                   remote_policy TEXT,
+                   latam_evidence TEXT,
+                   notes TEXT,
+                   created_at TEXT NOT NULL,
+                   updated_at TEXT NOT NULL,
+                   last_checked_at TEXT,
+                   last_success_at TEXT,
+                   failure_count INTEGER NOT NULL DEFAULT 0
+                )"""
+            )
+            connection.execute(
+                """INSERT INTO tracked_companies (
+                   company_key, company_name, ats_family, ats_identifier,
+                   created_at, updated_at
+                ) VALUES ('scaleops', 'ScaleOps', 'greenhouse', 'scaleops', ?, ?)""",
+                (NOW.isoformat(), NOW.isoformat()),
+            )
+            connection.execute("PRAGMA user_version = 8")
+            connection.commit()
+            connection.close()
+
+            with JobRepository(path) as migrated:
+                company = migrated.get_company("scaleops")
+                self.assertEqual(company.publisher_model, DIRECT_EMPLOYER)
+                self.assertEqual(
+                    migrated.connection.execute("PRAGMA user_version").fetchone()[0],
+                    9,
+                )
+            with JobRepository(path) as reopened:
+                self.assertEqual(reopened.get_company("scaleops"), company)
+
     def test_schema_migration_is_idempotent_and_preserves_existing_data(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "registry.db"
@@ -93,6 +148,32 @@ class CompanyPersistenceTests(unittest.TestCase):
                 self.assertEqual(len(reopened.list_companies()), 1)
                 self.assertEqual(reopened.observation_count(), 1)
 
+    def test_v9_migration_does_not_rewrite_existing_ashby_provenance(self) -> None:
+        job = JobOpportunity(
+            company="ElevenLabs", role="Account Executive (Brazil)",
+            job_url="https://jobs.ashbyhq.com/elevenlabs/account-executive",
+            source="ElevenLabs", location="Brazil", remote=True,
+            brazil_eligible=None, source_id="elevenlabs", source_family="ashby",
+            source_instance="ashby:elevenlabs", source_type="TENANT_BOARD",
+            lifecycle_authority="OBSERVATIONAL",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "provenance.db"
+            with JobRepository(path) as repository:
+                synced = sync_opportunities(
+                    process_opportunities([job], create_daniel_profile()), repository,
+                    now=NOW,
+                )
+                internal_id = synced.new_jobs[0].internal_id
+                repository.connection.execute("PRAGMA user_version = 8")
+                repository.connection.commit()
+            with JobRepository(path) as migrated:
+                observation = migrated.get_observations(internal_id)[0]
+                self.assertEqual(observation.source_id, "elevenlabs")
+                self.assertEqual(observation.source_family, "ashby")
+                self.assertEqual(observation.source_instance, "ashby:elevenlabs")
+                self.assertEqual(migrated.observation_count(), 1)
+
     def test_add_get_duplicate_list_enable_disable_and_update(self) -> None:
         with JobRepository(":memory:") as repository:
             low = repository.add_company(
@@ -123,6 +204,11 @@ class CompanyPersistenceTests(unittest.TestCase):
             self.assertEqual(updated.company_name, "High Updated")
             self.assertEqual(updated.priority, 300)
             self.assertEqual(low.failure_count, 0)
+            self.assertEqual(low.publisher_model, DIRECT_EMPLOYER)
+            recruiting = repository.update_company(
+                "low", publisher_model="recruiting-publisher"
+            )
+            self.assertEqual(recruiting.publisher_model, RECRUITING_PUBLISHER)
 
     def test_validation_rejects_invalid_fields_priority_and_naive_time(self) -> None:
         with JobRepository(":memory:") as repository:
@@ -138,15 +224,14 @@ class CompanyPersistenceTests(unittest.TestCase):
 
 
 class CompanyRegistryGenerationTests(unittest.TestCase):
-    def test_empty_registry_keeps_seven_operational_sources(self) -> None:
+    def test_empty_registry_keeps_only_six_global_sources(self) -> None:
         with JobRepository(":memory:") as repository:
             registry, snapshot = CompanyRegistry(repository).build_source_registry()
             self.assertEqual(
                 [item.source_id for item in registry.list_all()],
                 [
                     "jobicy", "remotive", "weworkremotely", "himalayas",
-                    "remoteok", "getonboard", "latamcent", "elevenlabs",
-                    "replit",
+                    "remoteok", "getonboard",
                 ],
             )
             self.assertEqual(snapshot.tracked, 0)
@@ -166,11 +251,73 @@ class CompanyRegistryGenerationTests(unittest.TestCase):
             )
             self.assertEqual(len(snapshot.executable), 1)
 
+    def test_ashby_direct_and_recruiting_publishers_use_generic_adapter(self) -> None:
+        with JobRepository(":memory:") as repository:
+            repository.add_company(
+                "elevenlabs", "ElevenLabs", "ashby", "elevenlabs"
+            )
+            repository.add_company(
+                "latamcent", "LatamCent", "ashby", "latamcent",
+                publisher_model=RECRUITING_PUBLISHER,
+            )
+            definitions, _ = CompanyRegistry(repository).source_definitions()
+            by_id = {item.source_id: item for item in definitions}
+            self.assertEqual(by_id["elevenlabs"].source_instance, "ashby:elevenlabs")
+            self.assertEqual(by_id["latamcent"].source_instance, "ashby:latamcent")
+            direct = by_id["elevenlabs"].adapter_factory()
+            recruiting = by_id["latamcent"].adapter_factory()
+            self.assertIs(type(direct), AshbyJobAdapter)
+            self.assertEqual(direct.employer_name, "ElevenLabs")
+            self.assertIsNone(recruiting.employer_name)
+            self.assertEqual(
+                by_id["latamcent"].capabilities.lifecycle_authority,
+                LifecycleAuthority.OBSERVATIONAL,
+            )
+
+    def test_wave1_seed_is_idempotent_and_preserves_existing_configuration(self) -> None:
+        with JobRepository(":memory:") as repository:
+            repository.add_company(
+                "elevenlabs", "ElevenLabs Custom", "ashby", "custom-board",
+                priority=321,
+            )
+            first = seed_ashby_wave1(repository)
+            second = seed_ashby_wave1(repository)
+            self.assertEqual(first.created, ["latamcent", "replit"])
+            self.assertEqual(first.preserved, ["elevenlabs"])
+            self.assertEqual(second.created, [])
+            self.assertEqual(
+                second.preserved, ["latamcent", "elevenlabs", "replit"]
+            )
+            preserved = repository.get_company("elevenlabs")
+            self.assertEqual(
+                (preserved.company_name, preserved.ats_identifier, preserved.priority),
+                ("ElevenLabs Custom", "custom-board", 321),
+            )
+            self.assertEqual(
+                repository.get_company("latamcent").publisher_model,
+                RECRUITING_PUBLISHER,
+            )
+
+    def test_transitional_duplicate_tenant_is_rejected_before_execution(self) -> None:
+        with JobRepository(":memory:") as repository:
+            repository.add_company(
+                "elevenlabs", "ElevenLabs", "ashby", "elevenlabs"
+            )
+            static = create_ashby_definitions((
+                AshbyTenantConfig(
+                    "elevenlabs", "ElevenLabs", "elevenlabs", "ElevenLabs"
+                ),
+            ))
+            with self.assertRaisesRegex(ValueError, "duplicate source_id"):
+                CompanyRegistry(repository).build_source_registry(
+                    base_registry=SourceRegistry(static)
+                )
+
     def test_disabled_and_unsupported_are_never_generated_or_requested(self) -> None:
         with JobRepository(":memory:") as repository:
             repository.add_company("disabled", "Disabled", "greenhouse", "disabled")
             repository.disable_company("disabled")
-            repository.add_company("future", "Future", "ashby", "future")
+            repository.add_company("future", "Future", "lever", "future")
             disabled_source = StubSource(success())
             future_source = StubSource(success())
             definitions, snapshot = CompanyRegistry(repository).source_definitions(
@@ -183,21 +330,46 @@ class CompanyRegistryGenerationTests(unittest.TestCase):
             self.assertEqual([item.company_key for item in snapshot.unsupported], ["future"])
             self.assertEqual([disabled_source.calls, future_source.calls], [0, 0])
 
-    def test_safety_limit_selects_top_25_deterministically(self) -> None:
+    def test_safety_limit_selects_top_25_across_greenhouse_and_ashby(self) -> None:
         with JobRepository(":memory:") as repository:
             for index in range(27):
                 repository.add_company(
                     f"company-{index:02d}", f"Company {index:02d}",
-                    "greenhouse", f"board-{index:02d}", priority=index,
+                    "greenhouse" if index % 2 else "ashby",
+                    f"board-{index:02d}", priority=index,
                 )
             definitions, snapshot = CompanyRegistry(repository).source_definitions()
             self.assertEqual(len(definitions), 25)
-            self.assertEqual(definitions[0].source_id, "greenhouse:company-26")
-            self.assertEqual(definitions[-1].source_id, "greenhouse:company-02")
+            self.assertEqual(definitions[0].source_id, "company-26")
+            self.assertEqual(definitions[-1].source_id, "company-02")
             self.assertEqual(
                 [item.company_key for item in snapshot.limited],
                 ["company-01", "company-00"],
             )
+
+
+class CompanyCliTests(unittest.TestCase):
+    def test_cli_add_update_list_and_seed_expose_publisher_model(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "cli.db")
+            output = StringIO()
+            with redirect_stdout(output):
+                company_cli_main([
+                    "add", "--db", path, "--key", "publisher",
+                    "--name", "Publisher", "--ats", "ashby",
+                    "--identifier", "publisher", "--publisher-model",
+                    "recruiting-publisher",
+                ])
+                company_cli_main([
+                    "update", "publisher", "--db", path,
+                    "--publisher-model", "direct-employer",
+                ])
+                company_cli_main(["seed-ashby-wave1", "--db", path])
+                company_cli_main(["list", "--db", path])
+            rendered = output.getvalue()
+            self.assertIn("Publisher Model", rendered)
+            self.assertIn("DIRECT_EMPLOYER", rendered)
+            self.assertIn("Created: latamcent, elevenlabs, replit", rendered)
 
 
 class CompanyHealthAndIntegrationTests(unittest.TestCase):
@@ -221,7 +393,7 @@ class CompanyHealthAndIntegrationTests(unittest.TestCase):
         with JobRepository(":memory:") as repository:
             repository.add_company("ok", "OK Co", "greenhouse", "ok")
             repository.add_company("bad", "Bad Co", "greenhouse", "bad")
-            repository.add_company("future", "Future Co", "ashby", "future")
+            repository.add_company("future", "Future Co", "lever", "future")
             ok = StubSource(success())
             bad = StubSource(failure())
             service = CompanyRegistry(repository)
@@ -250,6 +422,40 @@ class CompanyHealthAndIntegrationTests(unittest.TestCase):
             self.assertIn("## Company monitoring", rendered)
             self.assertIn("Tracked companies: 3", rendered)
             self.assertIn("Succeeded: 1 | Failed: 1 | Unsupported: 1", rendered)
+
+    def test_health_is_isolated_across_ashby_and_greenhouse_tenants(self) -> None:
+        with JobRepository(":memory:") as repository:
+            seed_ashby_wave1(repository)
+            repository.add_company(
+                "scaleops", "ScaleOps", "greenhouse", "scaleops"
+            )
+            sources = {
+                "elevenlabs": StubSource(failure()),
+                "latamcent": StubSource(success()),
+                "replit": StubSource(success()),
+                "greenhouse:scaleops": StubSource(success()),
+            }
+            service = CompanyRegistry(repository)
+            definitions, snapshot = service.source_definitions(
+                source_overrides=sources
+            )
+            discovery = MultiSourceDiscovery(
+                registry=SourceRegistry(definitions)
+            ).run(create_daniel_profile())
+            monitoring = service.record_discovery(
+                discovery, snapshot=snapshot, now=NOW
+            )
+            self.assertEqual(
+                (monitoring.executed, monitoring.succeeded, monitoring.failed),
+                (4, 3, 1),
+            )
+            self.assertEqual(repository.get_company("elevenlabs").failure_count, 1)
+            for key in ("latamcent", "replit", "scaleops"):
+                with self.subTest(key=key):
+                    company = repository.get_company(key)
+                    self.assertEqual(company.failure_count, 0)
+                    self.assertEqual(company.last_success_at, NOW)
+            self.assertTrue(all(source.calls == 1 for source in sources.values()))
 
     def test_failed_or_disabled_tenant_does_not_create_lifecycle_miss(self) -> None:
         with JobRepository(":memory:") as repository:

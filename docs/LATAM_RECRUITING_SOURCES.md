@@ -308,3 +308,11 @@ evaluated separately. ElevenLabs and Replit have the strongest current
 Brazil/LATAM GTM evidence and form the recommended two-tenant future pilot;
 Vanta remains ambiguous because a LATAM territory title does not establish
 worker location. Details: [`ASHBY_TENANT_RESEARCH.md`](ASHBY_TENANT_RESEARCH.md).
+
+## 13H.7 registry semantics
+
+LatamCent is now bootstrapped into the multi-ATS Company Registry as
+`RECRUITING_PUBLISHER`, not as a direct employer. Its source identity stays
+`ashby:latamcent`, and an undisclosed client employer remains undisclosed.
+ElevenLabs and Replit use `DIRECT_EMPLOYER`. No additional recruiting source or
+company was added in this stage.

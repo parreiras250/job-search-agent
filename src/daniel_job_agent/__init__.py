@@ -16,6 +16,8 @@ from .company_registry import (
     CompanyMonitoringSummary,
     CompanyRegistry,
     CompanyRegistrySnapshot,
+    CompanySeedResult,
+    seed_ashby_wave1,
 )
 
 from .discovery import (
@@ -31,9 +33,11 @@ from .models import (
     ApplicationTracking,
     CandidateProfile,
     CompanyRecord,
+    DIRECT_EMPLOYER,
     JobLifecycleStatus,
     JobOpportunity,
     LocationRestriction,
+    RECRUITING_PUBLISHER,
     RoleFamily,
     Seniority,
 )
@@ -214,11 +218,13 @@ __all__ = [
     "CompanyRecord",
     "CompanyRegistry",
     "CompanyRegistrySnapshot",
+    "CompanySeedResult",
     "CRM_COLUMNS",
     "CRMRecord",
     "CRMRecordNotFound",
     "CRMTable",
     "CRMValidationError",
+    "DIRECT_EMPLOYER",
     "DuplicateRecord",
     "DanielJobAgent",
     "DEFAULT_DATABASE_PATH",
@@ -279,6 +285,7 @@ __all__ = [
     "QueryEfficiency",
     "QueryUsefulnessRule",
     "RetentionDecision",
+    "RECRUITING_PUBLISHER",
     "OpportunityRisk",
     "ReportOpportunity",
     "RoleFamily",
@@ -364,5 +371,6 @@ __all__ = [
     "merge_manual_sheet_values",
     "measure_source_contributions",
     "save_weekly_report",
+    "seed_ashby_wave1",
     "sync_opportunities",
 ]

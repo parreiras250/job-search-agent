@@ -468,3 +468,17 @@ incident.io are not implemented.
 Offline fixtures follow only the documented Ashby posting contract. No tenant
 API was called during implementation or tests. `applyUrl` remains unpersisted
 pending an explicit schema proposal; schema stays at version 8.
+
+## 13H.7 — Persistent multi-ATS Company Registry
+
+Greenhouse and Ashby are now the two executable Company Registry families.
+Tenant records carry a validated publisher model so direct employer boards and
+recruiting publishers share generic ATS infrastructure without conflating the
+employer. The default source registry contains only the six global boards;
+tenant definitions come from SQLite.
+
+Schema v9 is an additive migration. Legacy companies default to
+`DIRECT_EMPLOYER`, and existing opportunities, CRM state and provenance are not
+rewritten. The combined enabled-tenant cap remains 25. Lever, Workable,
+Recruitee, SmartRecruiters and all unimplemented families remain registrable but
+unsupported. No new employer or ATS integration was added.

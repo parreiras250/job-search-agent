@@ -165,3 +165,16 @@ The API's `applyUrl` can differ from `jobUrl` and would matter to future
 application automation. The current v8 model has no dedicated field, so adding
 it requires an explicit schema proposal and migration. Wave 1 preserves
 `jobUrl`, documents this limitation, and does not change schema.
+
+## Company Registry ownership — 13H.7
+
+Ashby tenant configuration is now persistent data. The default source registry
+no longer hardcodes LatamCent, ElevenLabs or Replit. An explicit, idempotent
+`seed-ashby-wave1` command creates only these three rows and preserves existing
+manual configuration.
+
+ElevenLabs and Replit use `DIRECT_EMPLOYER`; LatamCent uses
+`RECRUITING_PUBLISHER`. Generated source IDs and instances are unchanged, so
+existing observations remain `ashby:elevenlabs`, `ashby:replit` and
+`ashby:latamcent`. Ashby authority remains observational and no company identity
+changes eligibility or scoring.

@@ -134,7 +134,7 @@ _AUTOMATIC_COLUMNS = (
     "opportunity_risks", "decision_reasons",
 )
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,6 +368,7 @@ class JobRepository:
                 careers_url TEXT,
                 ats_family TEXT NOT NULL,
                 ats_identifier TEXT NOT NULL,
+                publisher_model TEXT NOT NULL DEFAULT 'DIRECT_EMPLOYER',
                 enabled INTEGER NOT NULL DEFAULT 1,
                 priority INTEGER NOT NULL DEFAULT 100,
                 remote_policy TEXT,
@@ -417,6 +418,15 @@ class JobRepository:
                 self.connection.execute(
                     f"ALTER TABLE opportunities ADD COLUMN {name} {definition}"
                 )
+        company_columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(tracked_companies)")
+        }
+        if "publisher_model" not in company_columns:
+            self.connection.execute(
+                "ALTER TABLE tracked_companies ADD COLUMN publisher_model "
+                "TEXT NOT NULL DEFAULT 'DIRECT_EMPLOYER'"
+            )
         self.connection.execute(
             """UPDATE opportunities
                SET lifecycle_status = CASE
@@ -508,6 +518,7 @@ class JobRepository:
             careers_url=row["careers_url"],
             ats_family=row["ats_family"],
             ats_identifier=row["ats_identifier"],
+            publisher_model=row["publisher_model"],
             enabled=bool(row["enabled"]),
             priority=int(row["priority"]),
             remote_policy=row["remote_policy"],
@@ -533,6 +544,7 @@ class JobRepository:
         ats_family: str,
         ats_identifier: str,
         *,
+        publisher_model: str = "DIRECT_EMPLOYER",
         enabled: bool = True,
         priority: int = 100,
         careers_url: str | None = None,
@@ -548,6 +560,7 @@ class JobRepository:
             company_name=company_name.strip(),
             ats_family=ats_family.strip().casefold(),
             ats_identifier=ats_identifier.strip(),
+            publisher_model=publisher_model.strip().upper().replace("-", "_"),
             enabled=enabled,
             priority=priority,
             careers_url=careers_url,
@@ -561,13 +574,14 @@ class JobRepository:
             cursor = self.connection.execute(
                 """INSERT INTO tracked_companies (
                    company_key, company_name, careers_url, ats_family,
-                   ats_identifier, enabled, priority, remote_policy,
+                   ats_identifier, publisher_model, enabled, priority, remote_policy,
                    latam_evidence, notes, created_at, updated_at,
                    failure_count
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
                 (
                     company.company_key, company.company_name, company.careers_url,
                     company.ats_family, company.ats_identifier,
+                    company.publisher_model,
                     int(company.enabled), company.priority, company.remote_policy,
                     company.latam_evidence, company.notes,
                     timestamp.isoformat(), timestamp.isoformat(),
@@ -602,6 +616,7 @@ class JobRepository:
         company_name: str | None = None,
         ats_family: str | None = None,
         ats_identifier: str | None = None,
+        publisher_model: str | None = None,
         priority: int | None = None,
         careers_url: str | None = None,
         remote_policy: str | None = None,
@@ -619,6 +634,10 @@ class JobRepository:
             company_name=(company_name if company_name is not None else current.company_name).strip(),
             ats_family=(ats_family if ats_family is not None else current.ats_family).strip().casefold(),
             ats_identifier=(ats_identifier if ats_identifier is not None else current.ats_identifier).strip(),
+            publisher_model=(
+                publisher_model.strip().upper().replace("-", "_")
+                if publisher_model is not None else current.publisher_model
+            ),
             enabled=current.enabled,
             priority=priority if priority is not None else current.priority,
             careers_url=careers_url if careers_url is not None else current.careers_url,
@@ -634,12 +653,13 @@ class JobRepository:
         self.connection.execute(
             """UPDATE tracked_companies SET
                company_name = ?, careers_url = ?, ats_family = ?,
-               ats_identifier = ?, priority = ?, remote_policy = ?,
+               ats_identifier = ?, publisher_model = ?, priority = ?, remote_policy = ?,
                latam_evidence = ?, notes = ?, updated_at = ?
                WHERE company_key = ?""",
             (
                 updated.company_name, updated.careers_url, updated.ats_family,
-                updated.ats_identifier, updated.priority, updated.remote_policy,
+                updated.ats_identifier, updated.publisher_model,
+                updated.priority, updated.remote_policy,
                 updated.latam_evidence, updated.notes, timestamp.isoformat(),
                 updated.company_key,
             ),

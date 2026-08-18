@@ -101,15 +101,6 @@ class AshbyTenantConfig:
             raise ValueError("priority cannot be negative")
 
 
-DEFAULT_ASHBY_TENANTS = (
-    AshbyTenantConfig("latamcent", "LatamCent", "latamcent"),
-    AshbyTenantConfig(
-        "elevenlabs", "ElevenLabs", "elevenlabs", employer_name="ElevenLabs"
-    ),
-    AshbyTenantConfig("replit", "Replit", "replit", employer_name="Replit"),
-)
-
-
 @dataclass(frozen=True, slots=True)
 class SourceCapabilities:
     global_search: bool = False
@@ -181,6 +172,13 @@ class SourceRegistry:
     def register(self, definition: SourceDefinition) -> None:
         if definition.source_id in self._definitions:
             raise ValueError(f"duplicate source_id: {definition.source_id}")
+        if any(
+            item.source_instance == definition.source_instance
+            for item in self._definitions.values()
+        ):
+            raise ValueError(
+                f"duplicate source_instance: {definition.source_instance}"
+            )
         self._definitions[definition.source_id] = definition
 
     def get(self, source_id: str) -> SourceDefinition:
@@ -467,14 +465,7 @@ def create_default_source_registry(
             request_budget=1,
         ),
     ]
-    explicit_source_overrides = any(source is not None for source in (
-        jobicy_source, remotive_source, wwr_source, himalayas_source,
-        remoteok_source, getonboard_source,
-    ))
-    configured_ashby = ashby_tenants if ashby_tenants is not None else (
-        () if explicit_source_overrides and ashby_sources is None
-        else DEFAULT_ASHBY_TENANTS
-    )
+    configured_ashby = ashby_tenants or ()
     definitions.extend(
         create_ashby_definitions(configured_ashby, source_overrides=ashby_sources)
     )

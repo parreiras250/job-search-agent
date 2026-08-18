@@ -2,7 +2,7 @@
 
 Status: Etapas 13A–13F and 13G.1–13G.4 implemented. Jobicy, Remotive, We Work
 Remotely, Himalayas, RemoteOK and Get on Board are registered as real global operational sources;
-Greenhouse tenants are generated from the persistent Company Registry.
+Greenhouse and Ashby tenants are generated from the persistent Company Registry.
 
 Etapa 13H.1 completed research only. Get on Board is the recommended 13H.2
 public LATAM source; Gupy and Torre require protocol/access validation, while
@@ -589,6 +589,28 @@ refactor before direct-monitoring metrics have their own presentation.
 valuable for future application automation, but the v8 model has no safe second
 URL field. Adding one would require a model/schema migration, so Wave 1 records
 the limitation and keeps schema v8 rather than silently changing persistence.
+
+### 13H.7 — Company Registry multi-ATS expansion
+
+SQLite schema version 9 adds one validated `publisher_model` column to
+`tracked_companies`. Existing rows migrate additively to `DIRECT_EMPLOYER`, the
+safe meaning for legacy Greenhouse companies; no opportunity, CRM field or
+source observation is rewritten. `RECRUITING_PUBLISHER` keeps the existing
+undisclosed-employer behavior when the ATS payload has no employer identity.
+
+The default in-code registry now contains only the six global sources.
+Greenhouse and Ashby definitions are generated from enabled Company Registry
+rows in one priority order with a combined cap of 25. Greenhouse retains
+`AUTHORITATIVE` lifecycle authority and `greenhouse:<company_key>` identity;
+Ashby retains `OBSERVATIONAL` authority and `ashby:<company_key>` instance
+identity. Disabled, limited, unsupported and failed tenants do not create
+lifecycle misses.
+
+The explicit `seed-ashby-wave1` command bootstraps only LatamCent, ElevenLabs
+and Replit. It is idempotent and preserves any existing row rather than
+overwriting local metadata. Static Ashby runtime defaults are removed, while
+the generic factories remain available for tests and explicit configuration.
+The contribution baseline is not redesigned in this stage.
 
 ### 13H — Lifecycle authority
 

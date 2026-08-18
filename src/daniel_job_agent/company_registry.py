@@ -6,12 +6,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Mapping, TYPE_CHECKING
 
-from .models import CompanyRecord
+from .models import (
+    CompanyRecord,
+    DIRECT_EMPLOYER,
+    RECRUITING_PUBLISHER,
+)
 from .repository import JobRepository
 from .source_registry import (
+    AshbyTenantConfig,
     GreenhouseTenantConfig,
     SourceDefinition,
     SourceRegistry,
+    create_ashby_definitions,
     create_default_source_registry,
     create_greenhouse_pilot_definitions,
 )
@@ -22,7 +28,13 @@ if TYPE_CHECKING:
 
 
 DEFAULT_MAX_ENABLED_TENANTS = 25
-SUPPORTED_ATS_FAMILIES = frozenset({"greenhouse"})
+SUPPORTED_ATS_FAMILIES = frozenset({"greenhouse", "ashby"})
+
+ASHBY_WAVE1_SEED = (
+    ("latamcent", "LatamCent", "latamcent", RECRUITING_PUBLISHER),
+    ("elevenlabs", "ElevenLabs", "elevenlabs", DIRECT_EMPLOYER),
+    ("replit", "Replit", "replit", DIRECT_EMPLOYER),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +56,32 @@ class CompanyMonitoringSummary:
     unsupported: int = 0
     limited: int = 0
     top_failures: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class CompanySeedResult:
+    created: list[str]
+    preserved: list[str]
+
+
+def seed_ashby_wave1(repository: JobRepository) -> CompanySeedResult:
+    """Insere somente tenants ausentes; nunca sobrescreve configuração local."""
+
+    created: list[str] = []
+    preserved: list[str] = []
+    for company_key, company_name, identifier, publisher_model in ASHBY_WAVE1_SEED:
+        if repository.get_company(company_key) is not None:
+            preserved.append(company_key)
+            continue
+        repository.add_company(
+            company_key,
+            company_name,
+            "ashby",
+            identifier,
+            publisher_model=publisher_model,
+        )
+        created.append(company_key)
+    return CompanySeedResult(created=created, preserved=preserved)
 
 
 class CompanyRegistry:
@@ -84,20 +122,34 @@ class CompanyRegistry:
         source_overrides: Mapping[str, JobSource] | None = None,
     ) -> tuple[list[SourceDefinition], CompanyRegistrySnapshot]:
         snapshot = self.snapshot()
-        configs = tuple(
-            GreenhouseTenantConfig(
-                company_key=company.company_key,
-                company_name=company.company_name,
-                board_token=company.ats_identifier,
-                priority=company.priority,
-            )
-            for company in snapshot.executable
-        )
-        definitions = create_greenhouse_pilot_definitions(
-            configs,
-            source_overrides=source_overrides,
-            max_tenants=self.max_enabled_tenants,
-        )
+        definitions: list[SourceDefinition] = []
+        for company in snapshot.executable:
+            if company.ats_family == "greenhouse":
+                definitions.extend(create_greenhouse_pilot_definitions(
+                    (GreenhouseTenantConfig(
+                        company_key=company.company_key,
+                        company_name=company.company_name,
+                        board_token=company.ats_identifier,
+                        priority=company.priority,
+                    ),),
+                    source_overrides=source_overrides,
+                    max_tenants=self.max_enabled_tenants,
+                ))
+            elif company.ats_family == "ashby":
+                employer_name = (
+                    company.company_name
+                    if company.publisher_model == DIRECT_EMPLOYER else None
+                )
+                definitions.extend(create_ashby_definitions(
+                    (AshbyTenantConfig(
+                        tenant_key=company.company_key,
+                        publisher_name=company.company_name,
+                        board_name=company.ats_identifier,
+                        employer_name=employer_name,
+                        priority=company.priority,
+                    ),),
+                    source_overrides=source_overrides,
+                ))
         return definitions, snapshot
 
     def build_source_registry(
@@ -124,7 +176,11 @@ class CompanyRegistry:
         succeeded = failed = 0
         failures: list[str] = []
         for company in state.executable:
-            source_id = f"{company.ats_family}:{company.company_key}"
+            source_id = (
+                company.company_key
+                if company.ats_family == "ashby"
+                else f"{company.ats_family}:{company.company_key}"
+            )
             execution = discovery.source_executions_by_id.get(source_id)
             if execution is None:
                 continue

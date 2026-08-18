@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from .company_registry import seed_ashby_wave1
 from .repository import DEFAULT_DATABASE_PATH, JobRepository
 
 
@@ -17,6 +18,7 @@ def _print_company(company: object) -> None:
     print(f"Company: {getattr(company, 'company_name')}")
     print(f"ATS: {getattr(company, 'ats_family')}")
     print(f"Identifier: {getattr(company, 'ats_identifier')}")
+    print(f"Publisher model: {getattr(company, 'publisher_model')}")
     print(f"Enabled: {getattr(company, 'enabled')}")
     print(f"Priority: {getattr(company, 'priority')}")
     print(f"Last success: {last_success.isoformat() if last_success else '-'}")
@@ -36,6 +38,11 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--name", required=True)
     add.add_argument("--ats", required=True)
     add.add_argument("--identifier", required=True)
+    add.add_argument(
+        "--publisher-model",
+        choices=("direct-employer", "recruiting-publisher"),
+        default="direct-employer",
+    )
     add.add_argument("--priority", type=int, default=100)
     add.add_argument("--careers-url")
     add.add_argument("--notes")
@@ -55,9 +62,16 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--name")
     update.add_argument("--ats")
     update.add_argument("--identifier")
+    update.add_argument(
+        "--publisher-model",
+        choices=("direct-employer", "recruiting-publisher"),
+    )
     update.add_argument("--priority", type=int)
     update.add_argument("--careers-url")
     update.add_argument("--notes")
+
+    seed = commands.add_parser("seed-ashby-wave1")
+    _add_db_argument(seed)
     return parser
 
 
@@ -65,21 +79,33 @@ def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     with JobRepository(args.db) as repository:
         if args.command == "list":
-            print("Key | Company | ATS | Identifier | Enabled | Priority | Last Success | Failures")
+            print(
+                "Key | Company | ATS | Identifier | Publisher Model | "
+                "Enabled | Priority | Last Success | Failures"
+            )
             for company in repository.list_companies():
                 success = company.last_success_at.isoformat() if company.last_success_at else "-"
                 print(
                     f"{company.company_key} | {company.company_name} | "
                     f"{company.ats_family} | {company.ats_identifier} | "
+                    f"{company.publisher_model} | "
                     f"{company.enabled} | {company.priority} | {success} | "
                     f"{company.failure_count}"
                 )
+            return
+        if args.command == "seed-ashby-wave1":
+            result = seed_ashby_wave1(repository)
+            print(f"Created: {', '.join(result.created) if result.created else '-'}")
+            print(
+                "Preserved: "
+                f"{', '.join(result.preserved) if result.preserved else '-'}"
+            )
             return
         if args.command == "add":
             company = repository.add_company(
                 args.key, args.name, args.ats, args.identifier,
                 priority=args.priority, careers_url=args.careers_url,
-                notes=args.notes,
+                notes=args.notes, publisher_model=args.publisher_model,
             )
         elif args.command == "show":
             company = repository.get_company(args.key)
@@ -94,6 +120,7 @@ def main(argv: list[str] | None = None) -> None:
                 args.key, company_name=args.name, ats_family=args.ats,
                 ats_identifier=args.identifier, priority=args.priority,
                 careers_url=args.careers_url, notes=args.notes,
+                publisher_model=args.publisher_model,
             )
         _print_company(company)
 

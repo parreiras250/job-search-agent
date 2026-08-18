@@ -207,3 +207,233 @@ official documentation/terms URL, exact read endpoint or feed, authentication,
 current pricing/free limits, attribution, pagination, stable IDs, direct-apply
 URL and robots/automation restrictions. If those cannot be established, keep it
 `UNKNOWN` or move it to `RESTRICTED`; do not “test by scraping.”
+
+## Etapa 13H.1 — LATAM source intelligence
+
+Research snapshot: 2026-08-17. This pass used provider documentation, help
+centers, official job/candidate pages and official provider repositories. It did
+not call a jobs endpoint, inspect private frontend traffic or execute discovery.
+
+The implementation labels below are independent from evidence status:
+
+- `IMPLEMENT_NOW`: enough official evidence exists to build an offline-tested,
+  conservative integration using the documented public contract.
+- `NEEDS_ACCESS`: Daniel or the source owner must legitimately authorize access.
+- `NEEDS_TECHNICAL_VALIDATION`: the product is promising, but its tool contract,
+  limits, completeness or unattended behavior is not sufficiently documented.
+- `DO_NOT_IMPLEMENT`: no acceptable automated path or insufficient expected
+  value for the current agent.
+
+### Decision matrix
+
+| Priority | Source | Evidence | Access decision | Daniel Job Agent value | Recommendation |
+|---|---|---|---|---|---|
+| **P0** | [Get on Board](https://www.getonbrd.com/user-manual/get-on-board-s-api) | VERIFIED public API; limits partially verified | No auth for public facet; private API is unrelated and paid | LATAM tech board, public job search, structured remote/category/location and salary-rich postings; likely unique regional coverage | **IMPLEMENT_NOW** as 13H.2, with conservative pagination and attribution |
+| **P1** | [Gupy candidate MCP](https://candidatos.gupy.io/ia-para-pessoas-candidatas) | VERIFIED product; tool schema/limits not published in the reviewed page | Free candidate MCP; unattended use and result completeness need validation | Very high Brazil coverage; likely broad role mix, but incremental sales quality unknown | **NEEDS_TECHNICAL_VALIDATION**; do not use employer API |
+| **P1** | [Torre API for professionals](https://torre.ai/apiforprofessionals) | ACCESS_REQUIRED | Private beta; request access | Strong LATAM/remote corpus, structured location/timezone/salary potential | **NEEDS_ACCESS** |
+| **P1** | [HireLATAM jobs](https://hirelatam.com/jobs/) | PARTIALLY_VERIFIED | Public candidate page uses Recruiterflow; official API key is workspace-bound | Excellent LATAM + US-company fit; explicit SDR, AE, sales ops and remote US hours | **NEEDS_ACCESS** from HireLATAM/Recruiterflow workspace owner; never bypass auth |
+| **P1** | [Somewhere jobs](https://jobs.somewhere.com/) | PARTIALLY_VERIFIED | Public board is hosted through RecruitCRM; no official anonymous feed verified | Excellent US-company, full-time remote and sales-role fit; geography also includes non-LATAM pools | **NEEDS_ACCESS** or an owner-approved feed |
+| **P1** | [LatamCent careers](https://latamcent.com/careers/) | PARTIALLY_VERIFIED | Public careers UI, but no official API/feed verified | Exceptional B2B SaaS, AE, SDR, CSM, RevOps and US-company focus | **NEEDS_TECHNICAL_VALIDATION**; no HTML scraping |
+| **P1** | [Near jobs](https://www.hirewithnear.com/find-a-job) | PARTIALLY_VERIFIED | Public listings, no official API/feed verified | LATAM-only candidates, US employers, sales/CS/ops and Brazil explicitly supported | **NEEDS_ACCESS** or official feed confirmation |
+| **P2** | [Interfell](https://www.interfell.com/profesionales) | PARTIALLY_VERIFIED | Candidate registration precedes platform access; no public feed verified | LATAM remote, startups/fintech/software and some tech-commercial roles; more tech-heavy | **DO_NOT_IMPLEMENT** until an official public feed exists |
+| **P2** | [Startup.jobs](https://startup.jobs/api) | VERIFIED structured API/RSS/MCP | Public API/RSS advertised; attribution required | Strong startup corpus and sales feeds, but not LATAM-specific and likely overlaps global boards | **NEEDS_TECHNICAL_VALIDATION** after LATAM wave |
+| **P2** | [YC Jobs](https://www.ycombinator.com/jobs) | VERIFIED public candidate product | No official public job-search API/feed verified | Excellent B2B/startup and sales quality; LATAM eligibility is sparse and must be evaluated per job | **DO_NOT_IMPLEMENT** without an official automation contract |
+| **DEFER** | [GeekHunter](https://www.geekhunter.com.br/candidates/signup) | VERIFIED applicant platform; no public API/feed verified | Candidate account/profile workflow | Strong Brazil/tech, but present positioning and matching are technology-heavy; low GTM leverage | **DO_NOT_IMPLEMENT** |
+| **DEFER** | [Revelo](https://careers.revelo.com/) | VERIFIED applicant platform | Profile/matching workflow; no public feed verified | LATAM and US companies, but explicitly senior software/AI focused | **DO_NOT_IMPLEMENT** for a sales agent |
+| **DEFER** | [Workana](https://www.workana.com/work) | PARTIALLY_VERIFIED | Public marketplace pages; no acceptable official feed found | Freelance/project model and full-time developer program do not match core AE/CSM search | **DO_NOT_IMPLEMENT** |
+| **DEFER** | [Virtual Latinos](https://join.virtuallatinos.com/how-it-works/) | RESTRICTED applicant-only | Approval is required before access to the exclusive job portal | US/Canada clients and sales/VA roles, but closed candidate portal prevents unattended public discovery | **DO_NOT_IMPLEMENT** |
+| **BLOCKED** | [Wellfound](https://wellfound.com/terms) | RESTRICTED | Candidate account product; no public API/feed; terms constrain automated systems | High startup relevance, uncertain LATAM availability | **DO_NOT_IMPLEMENT** |
+
+`HireInCloud` (and similarly named services) was not added: this pass did not
+verify a distinct, credible official board with an acceptable access contract.
+That avoids turning a search lead into an invented source.
+
+### Get on Board — P0 / IMPLEMENT_NOW
+
+Official evidence is unusually strong. Get on Board documents a public and a
+private API facet. The public facet needs no setup or authentication and exposes
+published jobs, companies, categories, technologies, locations and free-text
+job search. The provider explicitly lists building a custom job board and
+studying public job-market data as supported uses. Its
+[official Ruby client](https://github.com/getonbrd/getonbrd-ruby) demonstrates
+`page`, `per_page`, expandable tags, category jobs, free-text search, remote
+status/modality and stable job resources. The private API and subscription are
+not needed.
+
+Public job pages show stable `GETONBRD Job ID`, company, title, description,
+conditions, technologies, remote policy, geographic eligibility and, when
+provided, compensation. The public API should therefore be modeled as one
+`GLOBAL_BOARD` with LATAM coverage, observational lifecycle and the original
+Get on Board URL. The provider's privacy notice says affiliated third-party
+display must disclose Get on Board as the source, so attribution/link-back is a
+hard capability.
+
+Remaining uncertainty is operational rather than architectural: the reviewed
+official material did not state a numeric public rate limit, retention policy or
+complete current field schema. 13H.2 should use one narrow query/page initially,
+no detail fan-out, a descriptive User-Agent, conservative request budget and
+offline fixtures. Pagination should be bounded even though it is supported.
+Salary must be preserved without currency conversion; location and remote
+modality must remain structured; missing fields remain UNKNOWN. This is a
+zero-paid-dependency integration under the officially documented public facet.
+
+### Gupy — P1 / NEEDS_TECHNICAL_VALIDATION
+
+Two products must not be conflated:
+
+1. The [Gupy R&S REST API](https://developers.gupy.io/v2.0/reference/authentication)
+   is an employer/customer integration. `GET /api/v1/jobs` is paginated, but it
+   requires a Bearer token created by a master/admin of a Premium or Enterprise
+   customer account. The token is company-bound and may expose management data.
+   It is not a credential for searching the public Gupy universe and is
+   **BLOCKED** for this project.
+2. The official [Gupy candidate MCP](https://candidatos.gupy.io/ia-para-pessoas-candidatas)
+   is free, uses the remote endpoint
+   `https://candidates.mcp.api.gupy.io/mcp`, and explicitly searches jobs from
+   Gupy's candidate portal. The setup examples target Gemini CLI, Claude and
+   Cursor. The reviewed page does not publish a stable tool/result schema,
+   pagination/completeness semantics, numeric rate limits, service-level terms
+   for unattended weekly execution or a plain Python REST contract.
+
+The MCP should not be disguised as `HttpTransport.get()`. MCP involves tool
+discovery and invocation, possibly conversational/auth state, while a REST feed
+is a deterministic pull. The safest future design is an external MCP ingestion
+boundary that validates tool results into `RawJobRecord` batches and then uses
+the normal adapter/pipeline. Only after its schema and unattended authorization
+are validated should a protocol-neutral execution definition join the registry.
+It must remain observational, and no candidate profile or application action
+should be automated.
+
+A fallback is Company Registry metadata for known Gupy tenant career pages.
+That would be tenant-scoped and may have better lifecycle semantics, but no
+official anonymous tenant feed was verified here. Do not scrape career pages or
+reuse the employer Bearer API.
+
+### HireLATAM — P1 / NEEDS_ACCESS
+
+HireLATAM's official candidate page says every listed role is remote, requires
+the candidate to be based in LATAM, uses English interviews and connects to US
+companies. Its role catalog explicitly includes SDR/BDR, Account Executive,
+Account Manager, sales support, CRM support and customer support. This is a
+high-value `RECRUITING_BOARD`, not a company ATS board.
+
+The page's job widget and talent-pool links are hosted by Recruiterflow.
+[Recruiterflow's official help](https://help.recruiterflow.com/en/articles/3671870-build-a-custom-careers-page-with-the-recruiterflow-api)
+says its public careers API returns open-job title, description, location,
+employment type and application URL, but the API key is issued for and tied to
+the agency workspace. It is not a general candidate key. A generic Recruiterflow
+adapter could later serve multiple recruiting agencies only when each workspace
+owner explicitly authorizes a server-side key. Daniel must not request or infer
+HireLATAM's key, and the embedded public UI is not permission to reverse engineer
+or bypass that authentication.
+
+### Torre — P1 / NEEDS_ACCESS
+
+Torre officially advertises both endpoints and an MCP server for professionals,
+including job discovery, job-database queries and match notifications. However,
+the professional API is in private beta and explicitly requires an access
+request. Public pricing, auth flow, stable schemas and rate limits were not
+published in the reviewed page. Classification: `ACCESS_REQUEST_REQUIRED`, not
+READY.
+
+If access is granted, validate the official endpoint/MCP contract and prefer a
+protocol-neutral ingestion layer like the Gupy proposal. Do not design around
+frontend calls. Torre's rich salary, remote, country and timezone presentation
+suggests strong normalized-field potential, but that is a value hypothesis until
+the authorized API schema is available.
+
+### Somewhere — P1 / NEEDS_ACCESS
+
+Somewhere's official candidate board describes full-time remote roles at US and
+European companies, and its official role catalog includes AE, SDR, Sales
+Manager, Sales Rep and customer-facing positions. It recruits across LATAM,
+South Africa and the Philippines, so eligibility must still be evaluated per
+job.
+
+The candidate job-board link is hosted through RecruitCRM. RecruitCRM documents
+API-powered careers pages for its customers, but this pass found no official
+anonymous, reusable jobs feed for third-party consumers. Treat it as a valuable
+`RECRUITING_BOARD` requiring provider/agency authorization, not as a frontend
+endpoint to copy. No integration is recommended without an official feed or an
+owner-approved credential.
+
+### GeekHunter — DEFER / DO_NOT_IMPLEMENT
+
+GeekHunter is now an applicant/profile and matching platform with a job mural.
+Its official pages describe Brazil plus international opportunities and
+multi-currency compensation, but candidate registration/profile approval is a
+core part of access and no official public jobs API, feed or RSS was found. The
+current employer positioning and candidate help remain strongly technology
+oriented; sales/GTM incremental value is therefore lower than the agency boards.
+Do not automate login or the job mural.
+
+### Other LATAM candidates
+
+- **LatamCent:** strongest content fit in the group: it focuses on US B2B SaaS
+  and explicitly recruits AE, SDR, Account Manager, RevOps, CSM, Solutions
+  Engineer and Sales Enablement. Its public careers page is real, but no official
+  structured access was verified. Keep P1 and ask for a candidate jobs feed.
+- **Near:** official candidate pages cover LATAM-only placements with US
+  companies across sales, CS, finance, tech and operations. No official feed was
+  found. High human value, no safe automation path yet.
+- **Interfell:** verified remote LATAM platform for startups, fintech and
+  software companies, with tech-commercial profiles, but platform registration
+  and a technology-heavy corpus reduce immediate leverage.
+- **Workana:** the public corpus is primarily freelance projects; its dedicated
+  full-time offering is aimed at developers. That is a poor match for the core
+  sales agent even before access questions.
+- **Revelo:** excellent LATAM-to-US model but explicitly optimized for senior
+  software engineers and AI work, so it is not a GTM source candidate.
+- **Virtual Latinos:** US/Canada remote roles include sales and business
+  development, but job access follows application, English testing, approval
+  and login. It is applicant-only and unsuitable for discovery automation.
+- **YC Jobs:** public pages expose startup roles and sales categories, but no
+  official read API/feed was verified. Do not scrape them. Company Registry ATS
+  coverage may capture part of the useful corpus more safely.
+- **Startup.jobs:** a credible non-LATAM discovery from this pass. Its official
+  API page offers API, filtered RSS and MCP with link attribution. It belongs in
+  a later global-source comparison, not ahead of Get on Board or access work on
+  LATAM-specific recruiting boards.
+
+### Proposed `RECRUITING_BOARD` source type
+
+Recruiting agencies publish one cross-client corpus, so `TENANT_BOARD` is wrong:
+the tenant is the agency, but each job belongs to a client and the agency may
+remain the application authority. `GLOBAL_BOARD` is mechanically workable but
+hides curation, client confidentiality and weaker closure authority.
+
+Adding `RECRUITING_BOARD` later would improve reporting, source-quality analysis
+and lifecycle policy. Its downside is another enum dimension when scope and
+ownership could instead be independent capabilities. Recommendation: do not
+change the enum in 13H.1. First integrate Get on Board as `GLOBAL_BOARD`; if an
+authorized agency feed becomes available, decide whether to add the type or a
+`publisher_model=RECRUITING_AGENCY` capability based on the real contract.
+
+### Manual access actions
+
+1. Submit Torre's official professional API private-beta access request. Do not
+   pay or agree to employer/company API access for this use case.
+2. Connect/test Gupy candidate MCP manually in a supported client and record
+   tool names, schemas, pagination, authorization persistence and limits. Do not
+   provide candidate documents or permit application actions during validation.
+3. Ask HireLATAM, Somewhere, LatamCent and Near whether they offer an official
+   candidate-facing RSS/API and permit low-frequency personal aggregation with
+   attribution. Do not ask them to disclose workspace API keys.
+4. No manual access action is required for Get on Board's public facet.
+
+### Recommended Wave 1 order
+
+1. **13H.2 — Get on Board public API.** Implement one conservative public jobs
+   query/page, offline adapter fixtures, attribution and an opt-in manual demo.
+2. **13H.3 — Gupy candidate MCP technical validation, not production enablement.**
+   Capture the authorized tool contract and decide whether a protocol adapter is
+   deterministic enough for weekly ingestion.
+3. **13H.4 — Recruiting-board access pilot.** Use HireLATAM first if its owner
+   provides an official feed/authorization; otherwise LatamCent, Near or
+   Somewhere may take the slot. No access means no implementation.
+4. **13H.5 — Torre authorized pilot**, only if private-beta access is granted.
+
+The exact next implementation is therefore **13H.2 Get on Board**. It is the
+only high-fit LATAM candidate in this pass with verified public, structured,
+no-auth access explicitly intended for published-job search and third-party job
+display.

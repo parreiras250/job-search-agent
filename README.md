@@ -1458,6 +1458,12 @@ Etapa 13C registra o We Work Remotely como terceira fonte real habilitada:
   registry, capabilities, company tenants, provenance, lifecycle authority,
   budgets e roadmap proposto.
 
+A Etapa 13H.1 acrescentou a pesquisa LATAM: Get on Board é a recomendação para
+13H.2 por possuir API pública oficial sem autenticação; Gupy/Torre exigem
+validação de MCP/acesso, e boards de agências só podem entrar com feed oficial
+ou autorização do proprietário. Nenhuma source de runtime foi adicionada nessa
+pesquisa.
+
 O fluxo agora é `SourceRegistry -> SourceDefinition -> JobSource + adapter ->
 ingestion -> pipeline`. Cada vaga carrega `source_id`, `source_family` e
 `source_instance`; discovery, falhas e contribuição funcionam para N definições

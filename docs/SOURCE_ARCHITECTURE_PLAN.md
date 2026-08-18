@@ -4,6 +4,11 @@ Status: Etapas 13A–13F and 13G.1–13G.4 implemented. Jobicy, Remotive, We Wor
 Remotely, Himalayas and RemoteOK are registered as real global operational sources;
 Greenhouse tenants are generated from the persistent Company Registry.
 
+Etapa 13H.1 completed research only. Get on Board is the recommended 13H.2
+public LATAM source; Gupy and Torre require protocol/access validation, while
+agency boards require an official owner-authorized feed. No runtime source was
+added in 13H.1.
+
 ## Etapa 13B implemented foundation
 
 The runtime now has an in-memory `SourceRegistry` whose ordered
@@ -463,6 +468,31 @@ timezone requires REVIEW. Unknown geography is REVIEW. SQLite schema version 8
 persists the axes and deterministic decision reasons without changing lifecycle,
 provenance or manual CRM fields. KEEP + REVIEW remains the operational relevant
 metric, whose usefulness depends on this calibration.
+
+### 13H.1 — LATAM source intelligence (research completed)
+
+Official evidence supports Get on Board's public no-auth job search as the first
+LATAM integration candidate. Gupy's candidate MCP is distinct from its paid,
+company-bound employer REST API; Torre's professional API/MCP remains private
+beta. HireLATAM, Somewhere, LatamCent and Near have unusually high candidate fit
+but no third-party public structured access verified yet.
+
+An MCP invocation is not an HTTP `JobSource`: it requires protocol tool
+discovery/invocation and may carry authorization/session state. A future MCP
+boundary should validate tool output into `RawJobRecord` before normal ingestion
+and should join `SourceRegistry` only after deterministic unattended behavior is
+proven. Do not place employer/customer credentials into the candidate workflow.
+
+Recruiting-agency boards expose cross-client corpora and may eventually justify
+`RECRUITING_BOARD` or, preferably at first, a publisher-model capability. No enum
+change is made until an authorized real feed establishes the distinction.
+
+Proposed sequence:
+
+1. 13H.2 — Get on Board public API integration.
+2. 13H.3 — Gupy candidate MCP contract validation.
+3. 13H.4 — authorized recruiting-board pilot, conditional on access.
+4. 13H.5 — Torre pilot, conditional on private-beta access.
 
 ### 13H — Lifecycle authority
 

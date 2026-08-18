@@ -194,11 +194,12 @@ class WeWorkRemotelyRegistryIntegrationTests(unittest.TestCase):
             jobicy_source=jobicy, remotive_source=remotive, wwr_source=wwr,
             himalayas_source=himalayas,
             remoteok_source=remoteok,
+            getonboard_source=StubSource(SourceResult(empty, [])),
         ).run(create_daniel_profile())
         self.assertEqual(
-            output.sources_attempted, ["Jobicy", "Remotive", "We Work Remotely", "Himalayas", "RemoteOK"]
+            output.sources_attempted, ["Jobicy", "Remotive", "We Work Remotely", "Himalayas", "RemoteOK", "Get on Board"]
         )
-        self.assertEqual(output.sources_succeeded, ["Jobicy", "Remotive", "Himalayas", "RemoteOK"])
+        self.assertEqual(output.sources_succeeded, ["Jobicy", "Remotive", "Himalayas", "RemoteOK", "Get on Board"])
         self.assertEqual(output.sources_failed, ["We Work Remotely"])
         self.assertEqual([jobicy.calls, remotive.calls, wwr.calls, himalayas.calls, remoteok.calls], [1, 1, 1, 1, 1])
 
@@ -219,6 +220,7 @@ class WeWorkRemotelyRegistryIntegrationTests(unittest.TestCase):
             wwr_source=StubSource(wwr_result),
             himalayas_source=StubSource(SourceResult(SourceStatus.NO_JOBS, [])),
             remoteok_source=StubSource(SourceResult(SourceStatus.NO_JOBS, [])),
+            getonboard_source=StubSource(SourceResult(SourceStatus.NO_JOBS, [])),
         ).run(create_daniel_profile())
         self.assertGreaterEqual(output.global_duplicates, 1)
         self.assertGreaterEqual(output.cross_source_duplicates, 1)
@@ -235,6 +237,7 @@ class WeWorkRemotelyRegistryIntegrationTests(unittest.TestCase):
                     wwr_source=StubSource(wwr_result),
                     himalayas_source=StubSource(empty),
                     remoteok_source=StubSource(empty),
+                    getonboard_source=StubSource(empty),
                 ),
             ).run()
             timestamp = datetime(2026, 8, 16, tzinfo=timezone.utc)
@@ -250,11 +253,12 @@ class WeWorkRemotelyRegistryIntegrationTests(unittest.TestCase):
                     wwr_source=StubSource(empty),
                     himalayas_source=StubSource(empty),
                     remoteok_source=StubSource(empty),
+                    getonboard_source=StubSource(empty),
                 ),
             ).run()
         self.assertEqual(
             [item.name for item in report.sources],
-            ["Jobicy", "Remotive", "We Work Remotely", "Himalayas", "RemoteOK"],
+            ["Jobicy", "Remotive", "We Work Remotely", "Himalayas", "RemoteOK", "Get on Board"],
         )
         self.assertEqual(report.sources[2].received, 5)
         self.assertEqual(second.lifecycle.misses_recorded, 5)

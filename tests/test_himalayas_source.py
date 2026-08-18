@@ -394,13 +394,14 @@ class HimalayasRegistryProvenanceLifecycleTests(unittest.TestCase):
             jobicy_source=good, remotive_source=good, wwr_source=good,
             himalayas_source=bad,
             remoteok_source=good,
+            getonboard_source=good,
         )
         with JobRepository(":memory:") as repository:
             result = DanielJobAgent(
                 repository, discovery=MultiSourceDiscovery(registry=registry),
                 clock=lambda: NOW,
             ).run()
-            self.assertEqual(result.sources_succeeded, ["Jobicy", "Remotive", "We Work Remotely", "RemoteOK"])
+            self.assertEqual(result.sources_succeeded, ["Jobicy", "Remotive", "We Work Remotely", "RemoteOK", "Get on Board"])
             self.assertEqual(result.sources_failed, ["Himalayas"])
             history = AgentRunHistory(
                 1, NOW, NOW, "PARTIAL_SUCCESS", result.sources_succeeded,

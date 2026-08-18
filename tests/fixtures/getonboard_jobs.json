@@ -1,0 +1,57 @@
+{
+  "data": [
+    {
+      "id": "sales-101",
+      "type": "job",
+      "attributes": {
+        "title": "Account Executive LATAM",
+        "description": "Own the full sales cycle for Latin America.",
+        "published_at": "2026-08-15T12:00:00Z",
+        "location": "Latin America",
+        "remote": true,
+        "remote_modality": "fully_remote",
+        "modality": "full_time",
+        "seniority": "Senior",
+        "min_salary": 3000,
+        "max_salary": 5000,
+        "salary_currency": "USD",
+        "salary_period": "monthly"
+      },
+      "relationships": {
+        "company": {"data": {"id": "acme", "type": "company", "attributes": {"name": "Acme LATAM"}}},
+        "tags": {"data": [{"id": "saas", "type": "tag", "attributes": {"name": "SaaS"}}]}
+      },
+      "links": {"public_url": "https://www.getonbrd.com/jobs/sales/acme-latam-sales-101"}
+    },
+    {
+      "id": "sales-102",
+      "type": "job",
+      "attributes": {
+        "title": "Sales Development Representative",
+        "description": "Remote sales development role.",
+        "published_at": "2026-08-14",
+        "location": "Chile",
+        "remote": true,
+        "remote_modality": "remote_local",
+        "modality": "contractor",
+        "tags": ["Sales", "B2B"]
+      },
+      "relationships": {"company": {"data": {"attributes": {"name": "Andes Cloud"}}}},
+      "links": {"public_url": "https://www.getonbrd.com/jobs/sales/andes-cloud-sales-102"}
+    },
+    {
+      "id": "sales-103",
+      "type": "job",
+      "attributes": {
+        "title": "Software Engineer",
+        "description": "On-site engineering role.",
+        "location": "Santiago, Chile",
+        "remote": false,
+        "min_salary": "not-a-number"
+      },
+      "relationships": {"company": {"data": {"attributes": {"name": "Malformed Optional Inc"}}}},
+      "links": {"public_url": "https://www.getonbrd.com/jobs/programming/malformed-103"}
+    }
+  ],
+  "meta": {"pagination": {"page": 1, "per_page": 20, "total_pages": 1}}
+}

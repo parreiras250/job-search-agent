@@ -1489,8 +1489,8 @@ PYTHONPATH=src python3 -m daniel_job_agent.provenance_demo
 ### Contribuição incremental das fontes globais
 
 A medição da Etapa 13G.2 atribui cada opportunity deduplicada à primeira source
-que a observou na ordem fixa Jobicy, Remotive, We Work Remotely, Himalayas e
-RemoteOK.
+que a observou na ordem fixa Jobicy, Remotive, We Work Remotely, Himalayas,
+RemoteOK e Get on Board.
 Ela mostra unique, KEEP, REVIEW, REJECT, relevant (`KEEP + REVIEW`), overlap e
 eficiência por request sem alterar automaticamente nenhuma source. Greenhouse
 tenants não fazem parte dessa baseline. Para executar manualmente a medição real:
@@ -1508,13 +1508,23 @@ manual real:
 PYTHONPATH=src python3 -m daniel_job_agent.remoteok_demo
 ```
 
+O Get on Board usa a API pública oficial sem autenticação. A integração executa
+somente `GET /api/v0/search/jobs` com `query=sales`, página 1 e `per_page=20`,
+expande company/tags, mantém a URL oficial para attribution e permanece
+observacional. `remote` nunca é convertido automaticamente em elegibilidade
+mundial ou brasileira. Demonstração manual real:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.getonboard_demo
+```
+
 Calibração totalmente offline:
 
 ```bash
 PYTHONPATH=src python3 -m daniel_job_agent.ranking_calibration_demo
 ```
 
-Validação real controlada das cinco fontes, para execução manual:
+Validação real controlada das fontes, para execução manual:
 
 ```bash
 PYTHONPATH=src python3 -m daniel_job_agent.ranking_validation_demo
@@ -1529,7 +1539,8 @@ mas sua qualidade depende da calibração de Career Fit e dos hard gates.
 - `Sales Engineer`, `Solutions Engineer` e `Technical Account Manager` possuem
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
-- O registry operacional contém Jobicy, Remotive, We Work Remotely, Himalayas e RemoteOK por padrão.
+- O registry operacional contém Jobicy, Remotive, We Work Remotely, Himalayas,
+  RemoteOK e Get on Board por padrão.
   Greenhouse só entra no discovery genérico quando tenants do piloto são
   configurados explicitamente (máximo de cinco); Lever permanece isolado.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as

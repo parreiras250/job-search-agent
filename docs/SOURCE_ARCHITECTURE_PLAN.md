@@ -1,7 +1,7 @@
 # Source Architecture Plan
 
 Status: Etapas 13A–13F and 13G.1–13G.4 implemented. Jobicy, Remotive, We Work
-Remotely, Himalayas and RemoteOK are registered as real global operational sources;
+Remotely, Himalayas, RemoteOK and Get on Board are registered as real global operational sources;
 Greenhouse tenants are generated from the persistent Company Registry.
 
 Etapa 13H.1 completed research only. Get on Board is the recommended 13H.2
@@ -493,6 +493,21 @@ Proposed sequence:
 2. 13H.3 — Gupy candidate MCP contract validation.
 3. 13H.4 — authorized recruiting-board pilot, conditional on access.
 4. 13H.5 — Torre pilot, conditional on private-beta access.
+
+### 13H.2 — Get on Board public API (implemented)
+
+Get on Board is the sixth global source and follows RemoteOK in marginal
+contribution order. It performs one unauthenticated request to the official
+`https://www.getonbrd.com/api/v0/search/jobs` endpoint with `query=sales`,
+`page=1`, `per_page=20` and company/tag expansion. No automatic pagination,
+retry or additional query is performed.
+
+The JSON:API adapter preserves the official ID and URL, expanded company and
+tags, description, publication date, location, remote flag/modality in the raw
+observation, employment modality, seniority and structured salary. It does not
+annualize salary, infer OTE, or turn remote work into worldwide/Brazil
+eligibility. The source is observational; a matching direct Greenhouse tenant
+remains authoritative. SQLite stays at schema version 8.
 
 ### 13H — Lifecycle authority
 

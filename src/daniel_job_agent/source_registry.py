@@ -10,6 +10,7 @@ from typing import Callable, Mapping
 from .ingestion import (
     BaseJobAdapter,
     GreenhouseJobAdapter,
+    GetOnBoardJobAdapter,
     HimalayasJobAdapter,
     JobicyJobAdapter,
     RemotiveJobAdapter,
@@ -18,6 +19,7 @@ from .ingestion import (
 )
 from .sources import (
     GreenhouseJobSource,
+    GetOnBoardJobSource,
     HimalayasJobSource,
     JobSource,
     JobicyJobSource,
@@ -228,10 +230,12 @@ def create_default_source_registry(
     himalayas_config: Mapping[str, object] | None = None,
     himalayas_source: JobSource | None = None,
     remoteok_source: JobSource | None = None,
+    getonboard_config: Mapping[str, object] | None = None,
+    getonboard_source: JobSource | None = None,
     greenhouse_tenants: tuple[GreenhouseTenantConfig, ...] = (),
     greenhouse_sources: Mapping[str, JobSource] | None = None,
 ) -> SourceRegistry:
-    """Registra as cinco fontes globais e tenants explícitos."""
+    """Registra as seis fontes globais e tenants explícitos."""
 
     jobicy_values = {
         "geo": "latam", "industry": "seller", "count": 100, "tag": None,
@@ -244,6 +248,10 @@ def create_default_source_registry(
     himalayas_values = {
         "q": "sales", "sort": "recent", "page": 1,
         **dict(himalayas_config or {}),
+    }
+    getonboard_values = {
+        "query": "sales", "page": 1, "per_page": 20,
+        **dict(getonboard_config or {}),
     }
     definitions = [
         SourceDefinition(
@@ -339,6 +347,26 @@ def create_default_source_registry(
             source_factory=(lambda: remoteok_source) if remoteok_source else RemoteOKJobSource,
             adapter_factory=RemoteOKJobAdapter,
             default_config={"feed_url": "https://remoteok.com/api"},
+            request_budget=1,
+        ),
+        SourceDefinition(
+            source_id="getonboard", display_name="Get on Board",
+            source_type=SourceType.GLOBAL_BOARD, source_family="getonboard",
+            source_instance="getonboard:global",
+            capabilities=SourceCapabilities(
+                global_search=True, supports_query=True,
+                supports_pagination=True, provides_description=True,
+                provides_salary=True, provides_posted_date=True,
+                provides_external_id=True, provides_direct_url=True,
+                lifecycle_authority=LifecycleAuthority.OBSERVATIONAL,
+                requires_auth=False, requires_attribution=True,
+            ),
+            source_factory=(lambda: getonboard_source) if getonboard_source else (
+                lambda: GetOnBoardJobSource(**getonboard_values)
+            ),
+            adapter_factory=GetOnBoardJobAdapter,
+            query_source_factory=lambda parameters: GetOnBoardJobSource(**parameters),
+            default_config=getonboard_values,
             request_budget=1,
         ),
     ]

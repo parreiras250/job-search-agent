@@ -94,6 +94,7 @@ class MultiSourceDiscovery:
         wwr_source: JobSource | None = None,
         himalayas_source: JobSource | None = None,
         remoteok_source: JobSource | None = None,
+        getonboard_source: JobSource | None = None,
         registry: SourceRegistry | None = None,
     ) -> None:
         self.jobicy_config = jobicy_config or JobicyDiscoveryConfig()
@@ -116,6 +117,7 @@ class MultiSourceDiscovery:
             wwr_source=wwr_source,
             himalayas_source=himalayas_source,
             remoteok_source=remoteok_source,
+            getonboard_source=getonboard_source,
         )
         # Compatibilidade de inspeção para código/testes anteriores.
         self._source_instances = {
@@ -127,6 +129,7 @@ class MultiSourceDiscovery:
         self.wwr_source = self._source_instances.get("weworkremotely")
         self.himalayas_source = self._source_instances.get("himalayas")
         self.remoteok_source = self._source_instances.get("remoteok")
+        self.getonboard_source = self._source_instances.get("getonboard")
 
     def run(self, profile: CandidateProfile) -> MultiSourceDiscoveryResult:
         """Consulta N fontes habilitadas e processa juntas somente vagas válidas."""

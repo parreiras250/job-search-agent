@@ -73,6 +73,7 @@ def run_agent(repository, *, jobicy_result=None, remotive_result=None):
         wwr_source=FakeSource(success([])),
         himalayas_source=FakeSource(success([])),
         remoteok_source=FakeSource(success([])),
+        getonboard_source=FakeSource(success([])),
     )
     return DanielJobAgent(repository, discovery=discovery, clock=StepClock()).run()
 
@@ -276,6 +277,7 @@ class WeeklyReportIntegrationTests(unittest.TestCase):
                 wwr_source=FakeSource(success([])),
                 himalayas_source=FakeSource(success([])),
                 remoteok_source=FakeSource(success([])),
+                getonboard_source=FakeSource(success([])),
             )
             outcome = run_weekly(
                 config,

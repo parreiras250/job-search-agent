@@ -26,6 +26,7 @@ JOBICY_API_BASE_URL = "https://jobicy.com/api/v2/remote-jobs"
 REMOTIVE_API_BASE_URL = "https://remotive.com/api/remote-jobs"
 HIMALAYAS_SEARCH_API_URL = "https://himalayas.app/jobs/api/search"
 REMOTEOK_API_URL = "https://remoteok.com/api"
+GETONBOARD_API_BASE_URL = "https://www.getonbrd.com/api/v0"
 WWR_SALES_MARKETING_RSS_URL = (
     "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"
 )
@@ -177,6 +178,31 @@ def build_himalayas_jobs_url(
     if isinstance(page, bool) or not isinstance(page, int) or page < 1:
         raise ValueError("page must be a positive integer")
     return f"{HIMALAYAS_SEARCH_API_URL}?{urlencode({'q': q.strip(), 'sort': sort, 'page': page})}"
+
+
+def build_getonboard_jobs_url(
+    *, query: str = "sales", page: int = 1, per_page: int = 20
+) -> str:
+    """Monta uma única página da busca pública oficial do Get on Board."""
+
+    if not isinstance(query, str) or len(query.strip()) < 3:
+        raise ValueError("query must contain at least three characters")
+    if isinstance(page, bool) or not isinstance(page, int) or page != 1:
+        raise ValueError("only the first Get on Board page is supported")
+    if (
+        isinstance(per_page, bool)
+        or not isinstance(per_page, int)
+        or not 1 <= per_page <= 20
+    ):
+        raise ValueError("per_page must be an integer between 1 and 20")
+    parameters = [
+        ("query", query.strip()),
+        ("page", str(page)),
+        ("per_page", str(per_page)),
+        ("expand[]", "company"),
+        ("expand[]", "tags"),
+    ]
+    return f"{GETONBOARD_API_BASE_URL}/search/jobs?{urlencode(parameters)}"
 
 
 def _fetch_json(
@@ -537,6 +563,78 @@ class RemoteOKJobSource(JobSource):
                 "RemoteOK payload entries must be objects",
             )
         records = [item for item in payload if not self._is_metadata(item)]
+        if not records:
+            return SourceResult(SourceStatus.NO_JOBS, [])
+        return SourceResult(SourceStatus.SUCCESS, records)
+
+
+class GetOnBoardJobSource(JobSource):
+    """Executa somente a primeira página da busca pública do Get on Board."""
+
+    def __init__(
+        self,
+        *,
+        query: str = "sales",
+        page: int = 1,
+        per_page: int = 20,
+        timeout: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+        transport: HttpTransport | None = None,
+    ) -> None:
+        if timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+        self.query = query.strip()
+        self.page = page
+        self.per_page = per_page
+        self.url = build_getonboard_jobs_url(
+            query=query, page=page, per_page=per_page
+        )
+        self.timeout = timeout
+        self.transport = transport or UrllibHttpTransport()
+
+    def fetch(self) -> SourceResult:
+        payload, error = _fetch_json(
+            source_name="Get on Board",
+            url=self.url,
+            timeout=self.timeout,
+            transport=self.transport,
+        )
+        if error is not None:
+            return error
+        if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD,
+                [],
+                "Get on Board payload must contain a data list",
+            )
+        if any(not isinstance(item, dict) for item in payload["data"]):
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD,
+                [],
+                "Get on Board data entries must be objects",
+            )
+        meta = payload.get("meta")
+        if meta is not None:
+            if not isinstance(meta, dict):
+                return SourceResult(
+                    SourceStatus.INVALID_PAYLOAD, [],
+                    "Get on Board pagination metadata must be an object",
+                )
+            pagination = meta.get("pagination", meta)
+            if not isinstance(pagination, dict):
+                return SourceResult(
+                    SourceStatus.INVALID_PAYLOAD, [],
+                    "Get on Board pagination metadata is invalid",
+                )
+            for key in ("page", "current_page", "per_page", "total_pages"):
+                value = pagination.get(key)
+                if value is not None and (
+                    isinstance(value, bool) or not isinstance(value, int) or value < 0
+                ):
+                    return SourceResult(
+                        SourceStatus.INVALID_PAYLOAD, [],
+                        "Get on Board pagination metadata is invalid",
+                    )
+        records = list(payload["data"])
         if not records:
             return SourceResult(SourceStatus.NO_JOBS, [])
         return SourceResult(SourceStatus.SUCCESS, records)

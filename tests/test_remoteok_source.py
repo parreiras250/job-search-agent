@@ -227,6 +227,7 @@ class RemoteOKIntegrationTests(unittest.TestCase):
         registry = create_default_source_registry(
             jobicy_source=empty, remotive_source=empty, wwr_source=empty,
             himalayas_source=empty, remoteok_source=failed,
+            getonboard_source=empty,
         )
         with JobRepository(":memory:") as repository:
             result = DanielJobAgent(
@@ -277,7 +278,7 @@ class RemoteOKContributionTests(unittest.TestCase):
         result = measure_source_contributions(
             process_opportunities([base, overlap, only], create_daniel_profile()), summaries
         )
-        self.assertEqual(result.operational_order[-1], "remoteok")
+        self.assertEqual(result.operational_order[-2:], ("remoteok", "getonboard"))
         remoteok = result.contributions["remoteok"]
         self.assertEqual(remoteok.unique_contributed, 2)
         self.assertEqual(remoteok.incremental_unique, 1)

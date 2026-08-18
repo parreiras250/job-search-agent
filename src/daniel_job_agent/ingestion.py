@@ -730,6 +730,217 @@ class HimalayasJobAdapter(BaseJobAdapter):
         return replace(result, warnings=[*result.warnings, *extra_warnings])
 
 
+class GetOnBoardJobAdapter(BaseJobAdapter):
+    """Converte recursos JSON:API públicos sem inferir elegibilidade remota."""
+
+    source_name = "Get on Board"
+    report_extended_optional_fields = True
+
+    @staticmethod
+    def _resource_attributes(value: object) -> Mapping[str, object]:
+        if not isinstance(value, Mapping):
+            return {}
+        data = value.get("data", value)
+        if not isinstance(data, Mapping):
+            return {}
+        attributes = data.get("attributes")
+        return attributes if isinstance(attributes, Mapping) else data
+
+    @classmethod
+    def _company_name(cls, record: RawJobRecord, attributes: Mapping[str, object]) -> object:
+        direct = attributes.get("company_name") or attributes.get("company")
+        if isinstance(direct, str):
+            return direct
+        expanded = cls._resource_attributes(direct)
+        if isinstance(expanded.get("name"), str):
+            return expanded["name"]
+        relationships = record.get("relationships")
+        if isinstance(relationships, Mapping):
+            company = cls._resource_attributes(relationships.get("company"))
+            return company.get("name")
+        return None
+
+    @classmethod
+    def _tags(cls, record: RawJobRecord, attributes: Mapping[str, object]) -> object:
+        value = attributes.get("tags")
+        if value is None and isinstance(record.get("relationships"), Mapping):
+            value = record["relationships"].get("tags")  # type: ignore[index,union-attr]
+        if isinstance(value, Mapping) and isinstance(value.get("data"), list):
+            value = value["data"]
+        if isinstance(value, list):
+            names: list[str] = []
+            for item in value:
+                if isinstance(item, str):
+                    names.append(item)
+                    continue
+                details = cls._resource_attributes(item)
+                name = details.get("name")
+                if isinstance(name, str):
+                    names.append(name)
+            return names or None
+        return value
+
+    @staticmethod
+    def _location(attributes: Mapping[str, object], remote: object) -> object:
+        value = attributes.get("location") or attributes.get("location_name")
+        if isinstance(value, str):
+            return value
+        if isinstance(value, Mapping):
+            return value.get("name")
+        if isinstance(value, list) and all(isinstance(item, str) for item in value):
+            return ", ".join(item for item in value if item.strip()) or None
+        return "Remote" if remote is True else value
+
+    @classmethod
+    def _relationship_names(
+        cls, value: object
+    ) -> tuple[list[str], bool]:
+        """Extrai apenas nomes expandidos; IDs isolados continuam desconhecidos."""
+
+        if value is None:
+            return [], False
+        if not isinstance(value, Mapping) or "data" not in value:
+            return [], True
+        data = value.get("data")
+        if data is None:
+            return [], False
+        items = data if isinstance(data, list) else [data]
+        names: list[str] = []
+        malformed = False
+        for item in items:
+            if not isinstance(item, Mapping):
+                malformed = True
+                continue
+            attributes = item.get("attributes")
+            details = attributes if isinstance(attributes, Mapping) else item
+            name = details.get("name")
+            if isinstance(name, str) and name.strip():
+                names.append(" ".join(name.split()))
+            elif item.get("id") is None or not isinstance(item.get("type"), str):
+                malformed = True
+        return names, malformed
+
+    @classmethod
+    def _relationship_text(
+        cls, value: object
+    ) -> tuple[str | None, bool]:
+        """Aceita texto legado ou relacionamento oficial sem mapear IDs."""
+
+        if value is None:
+            return None, False
+        if isinstance(value, str):
+            return (" ".join(value.split()) or None), False
+        names, malformed = cls._relationship_names(value)
+        return (", ".join(names) or None), malformed
+
+    @staticmethod
+    def _publication_date(value: object) -> object:
+        """Normaliza Unix seconds para ISO UTC e mantém ISO legado."""
+
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            try:
+                return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+            except (OverflowError, OSError, ValueError):
+                return value
+        return value
+
+    def adapt(self, record: RawJobRecord) -> IngestionResult:
+        extra_warnings: list[IngestionWarning] = []
+        attributes = record.get("attributes")
+        if not isinstance(attributes, Mapping):
+            attributes = {}
+        links = record.get("links")
+        url = None
+        if isinstance(links, Mapping):
+            url = links.get("public_url") or links.get("public-url") or links.get("self")
+        remote = attributes.get("remote")
+        employment_type, malformed_modality = self._relationship_text(
+            attributes.get("modality")
+            if "modality" in attributes
+            else attributes.get("employment_type")
+        )
+        if malformed_modality:
+            extra_warnings.append(IngestionWarning(
+                "employment_type",
+                "modality relationship is malformed",
+                attributes.get("modality"),
+            ))
+        job_level, malformed_seniority = self._relationship_text(
+            attributes.get("seniority")
+        )
+        if malformed_seniority:
+            extra_warnings.append(IngestionWarning(
+                "job_level",
+                "seniority relationship is malformed",
+                attributes.get("seniority"),
+            ))
+
+        explicit_location = self._location(attributes, remote)
+        relationship_names: list[str] = []
+        has_unexpanded_location = False
+        for field_name in (
+            "location_cities", "location_regions", "location_tenants"
+        ):
+            relationship = attributes.get(field_name)
+            names, malformed = self._relationship_names(relationship)
+            relationship_names.extend(names)
+            if (
+                isinstance(relationship, Mapping)
+                and relationship.get("data") not in (None, [])
+                and not names
+                and not malformed
+            ):
+                has_unexpanded_location = True
+            if malformed:
+                extra_warnings.append(IngestionWarning(
+                    "location",
+                    f"{field_name} relationship is malformed",
+                    attributes.get(field_name),
+                ))
+        if relationship_names:
+            location = ", ".join(dict.fromkeys(relationship_names))
+        elif has_unexpanded_location and remote is True:
+            location = "Remote — location restricted (unspecified)"
+        elif has_unexpanded_location:
+            location = "Location unspecified"
+        elif isinstance(explicit_location, str) and explicit_location.strip():
+            location = explicit_location
+        elif remote is True:
+            location = "Remote — location unspecified"
+        else:
+            location = "Location unspecified"
+
+        identifier = record.get("id")
+        if identifier is not None and not isinstance(identifier, str):
+            identifier = str(identifier)
+        mapped: dict[str, object] = {
+            "company": self._company_name(record, attributes),
+            "role": attributes.get("title"),
+            "job_url": attributes.get("public_url") or attributes.get("url") or url,
+            "location": location,
+            "description": attributes.get("description"),
+            "employment_type": employment_type,
+            "salary_min": attributes.get("min_salary"),
+            "salary_max": attributes.get("max_salary"),
+            "salary_currency": attributes.get("salary_currency") or attributes.get("currency"),
+            "salary_period": attributes.get("salary_period"),
+            "external_id": identifier,
+            "job_level": job_level,
+            "date_posted": self._publication_date(
+                attributes.get("published_at")
+                if attributes.get("published_at") is not None
+                else attributes.get("created_at")
+            ),
+            "industries_mentioned": self._tags(record, attributes),
+            "remote": remote,
+            "brazil_eligible": None,
+        }
+        result = super().adapt(mapped)
+        return replace(result, warnings=[*result.warnings, *extra_warnings])
+
+
 def ingest_batch(
     records: Iterable[RawJobRecord], adapter: BaseJobAdapter
 ) -> BatchIngestionResult:

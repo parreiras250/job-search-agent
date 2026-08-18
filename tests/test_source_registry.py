@@ -92,7 +92,7 @@ def definition(
 class SourceRegistryTests(unittest.TestCase):
     def test_default_registry_contains_current_sources(self) -> None:
         registry = create_default_source_registry()
-        self.assertEqual([item.source_id for item in registry.list_all()], ["jobicy", "remotive", "weworkremotely", "himalayas", "remoteok"])
+        self.assertEqual([item.source_id for item in registry.list_all()], ["jobicy", "remotive", "weworkremotely", "himalayas", "remoteok", "getonboard"])
         self.assertEqual(
             [item.default_config for item in registry.list_all()],
             [
@@ -101,6 +101,7 @@ class SourceRegistryTests(unittest.TestCase):
                 {"feed_url": "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"},
                 {"q": "sales", "sort": "recent", "page": 1},
                 {"feed_url": "https://remoteok.com/api"},
+                {"query": "sales", "page": 1, "per_page": 20},
             ],
         )
 

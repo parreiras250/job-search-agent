@@ -1,0 +1,58 @@
+[
+  {
+    "id": "real-fully-remote",
+    "type": "job",
+    "attributes": {
+      "title": "Account Executive LATAM",
+      "description": "Full-cycle B2B sales.",
+      "published_at": 1786711197,
+      "remote": true,
+      "remote_modality": "fully_remote",
+      "modality": {"data": {"id": 1, "type": "modality"}},
+      "seniority": {"data": {"id": 3, "type": "seniority"}},
+      "location_cities": {"data": []},
+      "location_regions": {"data": []},
+      "location_tenants": {"data": null},
+      "min_salary": 3000,
+      "max_salary": 5000,
+      "salary_currency": "USD"
+    },
+    "relationships": {
+      "company": {"data": {"id": "acme", "type": "company", "attributes": {"name": "Acme"}}},
+      "tags": {"data": [{"id": "sales", "type": "tag", "attributes": {"name": "Sales"}}]}
+    },
+    "links": {"public_url": "https://www.getonbrd.com/jobs/sales/real-fully-remote"}
+  },
+  {
+    "id": "real-no-remote",
+    "type": "job",
+    "attributes": {
+      "title": "Ejecutivo/a de Ventas B2B Software",
+      "published_at": 1786711197.0,
+      "remote": false,
+      "remote_modality": "no_remote",
+      "modality": {"data": {"id": 1, "type": "modality"}},
+      "seniority": {"data": {"id": 3, "type": "seniority"}},
+      "location_cities": {"data": [{"id": 130, "type": "location_city"}]}
+    },
+    "relationships": {"company": {"data": {"attributes": {"name": "Ventas B2B"}}}},
+    "links": {"public_url": "https://www.getonbrd.com/jobs/sales/real-no-remote"}
+  },
+  {
+    "id": "real-remote-local",
+    "type": "job",
+    "attributes": {
+      "title": "Sales Development Representative",
+      "published_at": 1786711197,
+      "remote": true,
+      "remote_modality": "remote_local",
+      "remote_zone": "local",
+      "modality": {"data": null},
+      "seniority": {"data": []},
+      "location_regions": {"data": [{"id": 8, "type": "location_region"}]},
+      "location_tenants": {"data": [{"id": 2, "type": "location_tenant"}]}
+    },
+    "relationships": {"company": {"data": {"attributes": {"name": "Regional SaaS"}}}},
+    "links": {"public_url": "https://www.getonbrd.com/jobs/sales/real-remote-local"}
+  }
+]

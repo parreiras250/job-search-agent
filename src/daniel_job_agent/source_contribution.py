@@ -16,6 +16,7 @@ GLOBAL_SOURCE_ORDER = (
     "himalayas",
     "remoteok",
     "getonboard",
+    "latamcent",
 )
 
 

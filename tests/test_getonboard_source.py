@@ -250,7 +250,7 @@ class GetOnBoardRegistryTests(unittest.TestCase):
         self.assertEqual(definition.default_config, {"query": "sales", "page": 1, "per_page": 20})
 
     def test_contribution_order_places_getonboard_after_remoteok(self) -> None:
-        self.assertEqual(GLOBAL_SOURCE_ORDER[-2:], ("remoteok", "getonboard"))
+        self.assertEqual(GLOBAL_SOURCE_ORDER[-3:], ("remoteok", "getonboard", "latamcent"))
 
     def test_greenhouse_remains_primary_over_observational_duplicate(self) -> None:
         greenhouse = JobOpportunity(

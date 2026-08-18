@@ -278,7 +278,7 @@ class RemoteOKContributionTests(unittest.TestCase):
         result = measure_source_contributions(
             process_opportunities([base, overlap, only], create_daniel_profile()), summaries
         )
-        self.assertEqual(result.operational_order[-2:], ("remoteok", "getonboard"))
+        self.assertEqual(result.operational_order[-3:], ("remoteok", "getonboard", "latamcent"))
         remoteok = result.contributions["remoteok"]
         self.assertEqual(remoteok.unique_contributed, 2)
         self.assertEqual(remoteok.incremental_unique, 1)

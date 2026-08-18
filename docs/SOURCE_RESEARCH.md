@@ -78,7 +78,7 @@ not employer posting fees. `UNKNOWN` cost means it must be checked before work.
 |---|---|---|---|---|---|---|---|
 | [Greenhouse](https://developers.greenhouse.io/job-board.html) | JSON Job Board API; board token | GET no auth; zero-cost public reads | Published jobs, stable IDs, details; direct tenant snapshot is authoritative | High for curated US SaaS companies | Company Registry-backed; one request per tenant, default safety cap 25 | P0 | IMPLEMENTED DIRECT ATS + COMPANY REGISTRY |
 | [Lever](https://github.com/lever/postings-api) | JSON Postings API; site + global/EU region | Public published postings; GET key not documented | Pagination, filters, stable ID, descriptions, apply URL, remote type, optional salary; authoritative candidate | High | Low/medium; tenant and region management | P0 | VERIFIED |
-| [Ashby](https://developers.ashbyhq.com/docs/public-job-posting-api) | JSON postings; job board name | Public endpoint documented; no auth shown | Published jobs, locations, apply URL and optional compensation; authoritative candidate | High for startups/SaaS | Low/medium; new adapter + tenant registry | P0 | VERIFIED |
+| [Ashby](https://developers.ashbyhq.com/docs/public-job-posting-api) | JSON postings; job board name | Public endpoint documented; no auth shown | Published jobs, locations, apply URL and optional compensation; LatamCent kept observational | High for startups/SaaS | Generic adapter implemented; LatamCent is first tenant | P0 | IMPLEMENTED OFFLINE |
 | [Workable](https://workable.readme.io/reference/jobs-1) | Public jobs by account/subdomain | Public-job endpoint exists; auth/terms/free read need confirmation | Structured account jobs; authority likely only after completeness verified | High for curated tech companies | Medium; verify access first | P1 | LIKELY |
 | [SmartRecruiters](https://developers.smartrecruiters.com/docs/endpoints) | Posting API by company identifier | Public postings documented; official auth wording is inconsistent | Query, location, pagination, stable IDs; authoritative if complete | Medium/high | Medium; confirm anonymous/key access | P1 | LIKELY |
 | [Recruitee](https://docs.recruitee.com/reference/intro-to-careers-site-api) | Careers Site API by company subdomain | Viewing jobs documented no-auth | Offers and career/apply URLs; tenant snapshot candidate | Medium | Medium; validate fields/pagination/terms | P1 | VERIFIED |
@@ -121,25 +121,24 @@ API presence in an old directory or third-party marketplace is not sufficient.
 
 ## LATAM and Brazil
 
-This is the largest evidence gap. These names are research leads, not approved
-automation targets. None received a `VERIFIED` public zero-cost read API in this
-audit.
+This was the preliminary evidence gap before the focused 13H research. Later
+findings and current decisions appear in the decision matrix below.
 
 | Source | Likely market / relevance | Public API/feed, auth, cost, ToS | Priority | Status |
 |---|---|---|---|---|
 | [Torre](https://torre.ai/) | LATAM/global talent; potentially strong | Not verified | P1 research | UNKNOWN |
 | [Get on Board](https://www.getonbrd.com/) | LATAM tech; potentially strong for startups/SaaS | Not verified | P1 research | UNKNOWN |
-| [Gupy](https://www.gupy.io/) | Brazil ATS/board; high geographic relevance | Public search API not verified | P1 research | UNKNOWN |
+| [Gupy](https://www.gupy.io/) | Brazil ATS/board; high geographic relevance | Candidate MCP verified later; unattended contract incomplete | DEFER | LOW PRIORITY |
 | [Vagas](https://www.vagas.com.br/) | Brazil board; broad roles | Not verified | P2 research | UNKNOWN |
 | [Catho](https://www.catho.com.br/) | Brazil board | Subscription/access/automation terms not verified | DEFER | UNKNOWN |
 | [InfoJobs](https://www.infojobs.com.br/) | Brazil board | Not verified | DEFER | UNKNOWN |
 | [Workana](https://www.workana.com/) | LATAM freelance marketplace; employment fit differs | API/access not verified | DEFER | UNKNOWN |
 | [Revelo](https://www.revelo.com/) | LATAM talent platform, likely tech-heavy | Public jobs feed not verified | DEFER | UNKNOWN |
 | [GeekHunter](https://www.geekhunter.com.br/) | Brazil tech talent; low direct sales hypothesis | Public feed not verified | DEFER | UNKNOWN |
-| [HireLATAM](https://hirelatam.com/) | LATAM remote hiring; role relevance plausible | Public structured access not verified | P2 research | UNKNOWN |
-| [Somewhere](https://somewhere.com/) | Remote talent/LATAM relevance plausible | Public structured access not verified | P2 research | UNKNOWN |
-| [Near](https://www.hirewithnear.com/) | LATAM hiring; company/recruiting service | Public jobs API/feed not verified | DEFER | UNKNOWN |
-| [LatamCent](https://latamcent.com/) | LATAM remote hiring; sales relevance plausible | Public structured access not verified | P2 research | UNKNOWN |
+| [HireLATAM](https://hirelatam.com/) | LATAM → US recruiting; strong sales fit | Recruiterflow workspace authorization required | P1 | REQUEST_ACCESS |
+| [Somewhere](https://somewhere.com/) | Global remote recruiting with LATAM coverage | RecruitCRM partner token required | P1 | MONITOR |
+| [Near](https://www.hirewithnear.com/) | LATAM → US recruiting; strong sales fit | No official reusable feed verified | P1 | REQUEST_ACCESS |
+| [LatamCent](https://latamcent.com/) | LATAM → US B2B SaaS; exceptional GTM fit | Verified public Ashby Job Postings API | P0 | IMPLEMENTED_OFFLINE |
 | [Virtual Latinos](https://www.virtuallatinos.com/) | LATAM remote roles; contractor/service model | Public feed/access not verified | DEFER | UNKNOWN |
 
 ## Startup and technology ecosystems
@@ -178,7 +177,7 @@ Human/community access must not be converted into login automation.
 
 | Tier | Candidates | Rationale / gate |
 |---|---|---|
-| **P0** | Jobicy, Remotive, We Work Remotely RSS, Himalayas, RemoteOK, Get on Board; framework support for Greenhouse, Lever, Ashby | Strong official evidence, structured data, zero-cost public read path documented or already implemented, high expected remote/startup coverage. |
+| **P0** | Jobicy, Remotive, We Work Remotely RSS, Himalayas, RemoteOK, Get on Board, LatamCent/Ashby; framework support for Greenhouse and Lever | Strong official evidence, structured data, zero-cost public read path documented or already implemented, high expected remote/startup coverage. |
 | **P1** | Arbeitnow pilot; Workable, SmartRecruiters, Recruitee, Personio verification; focused research on Torre, Get on Board, Gupy, Wellfound, YC, RepVue, Bravado | Promising coverage or geography, but access terms, auth, completeness or actual incremental gain remains a gate. |
 | **P2** | Working Nomads, Dynamite Jobs, Adzuna, Jooble, The Muse, Techstars, Built In, HireLATAM, Somewhere, LatamCent, RevGenius | Research queue; do not schedule until official access/cost/attribution is verified. |
 | **DEFER** | Teamtailor, Breezy, Comeet, Workday, Jobvite, iCIMS, Remote.co, NoDesk, Jobgether, Remote Rocketship, Careerjet, Findwork, Vagas, Catho, InfoJobs, Workana, Revelo, GeekHunter, Near, Virtual Latinos, Welcome to the Jungle, Pavilion | Higher setup/uncertainty, weaker expected fit, or no verified public method. Re-evaluate after P0/P1 metrics. |
@@ -230,12 +229,12 @@ The implementation labels below are independent from evidence status:
 | Priority | Source | Evidence | Access decision | Daniel Job Agent value | Recommendation |
 |---|---|---|---|---|---|
 | **P0** | [Get on Board](https://www.getonbrd.com/user-manual/get-on-board-s-api) | VERIFIED public API; limits partially verified | No auth for public facet; private API is unrelated and paid | LATAM tech board, public job search, structured remote/category/location and salary-rich postings; likely unique regional coverage | **IMPLEMENT_NOW** as 13H.2, with conservative pagination and attribution |
-| **P1** | [Gupy candidate MCP](https://candidatos.gupy.io/ia-para-pessoas-candidatas) | VERIFIED product; tool schema/limits not published in the reviewed page | Free candidate MCP; unattended use and result completeness need validation | Very high Brazil coverage; likely broad role mix, but incremental sales quality unknown | **NEEDS_TECHNICAL_VALIDATION**; do not use employer API |
+| **DEFER** | [Gupy candidate MCP](https://candidatos.gupy.io/ia-para-pessoas-candidatas) | VERIFIED product; tool schema/limits not published in the reviewed page | Free candidate MCP; unattended use and result completeness need validation | High Brazil coverage, but broad volume has lower expected outcome leverage than focused LATAM-to-US recruiting sources for this project | **DEFER / LOW PRIORITY**; this is a roadmap decision, not a claim that Gupy is ineffective |
 | **P1** | [Torre API for professionals](https://torre.ai/apiforprofessionals) | ACCESS_REQUIRED | Private beta; request access | Strong LATAM/remote corpus, structured location/timezone/salary potential | **NEEDS_ACCESS** |
-| **P1** | [HireLATAM jobs](https://hirelatam.com/jobs/) | PARTIALLY_VERIFIED | Public candidate page uses Recruiterflow; official API key is workspace-bound | Excellent LATAM + US-company fit; explicit SDR, AE, sales ops and remote US hours | **NEEDS_ACCESS** from HireLATAM/Recruiterflow workspace owner; never bypass auth |
-| **P1** | [Somewhere jobs](https://jobs.somewhere.com/) | PARTIALLY_VERIFIED | Public board is hosted through RecruitCRM; no official anonymous feed verified | Excellent US-company, full-time remote and sales-role fit; geography also includes non-LATAM pools | **NEEDS_ACCESS** or an owner-approved feed |
-| **P1** | [LatamCent careers](https://latamcent.com/careers/) | PARTIALLY_VERIFIED | Public careers UI, but no official API/feed verified | Exceptional B2B SaaS, AE, SDR, CSM, RevOps and US-company focus | **NEEDS_TECHNICAL_VALIDATION**; no HTML scraping |
-| **P1** | [Near jobs](https://www.hirewithnear.com/find-a-job) | PARTIALLY_VERIFIED | Public listings, no official API/feed verified | LATAM-only candidates, US employers, sales/CS/ops and Brazil explicitly supported | **NEEDS_ACCESS** or official feed confirmation |
+| **P1** | [HireLATAM jobs](https://hirelatam.com/jobs/) | VERIFIED product fit; Recruiterflow access contract verified | Workspace-bound API key must be authorized by HireLATAM/Recruiterflow | Excellent LATAM + US-company fit; explicit SDR, AE and sales ops | **REQUEST_ACCESS** |
+| **P1** | [Somewhere jobs](https://jobs.somewhere.com/) | VERIFIED product fit; RecruitCRM auth contract verified | Business-plan workspace token required; no anonymous feed verified | Strong US-company/full-time/sales fit, but global candidate regions | **MONITOR** pending partner access |
+| **P0** | [LatamCent careers](https://latamcent.com/careers/) | VERIFIED Ashby board and official public posting API | Public no-auth ATS endpoint | Best combined fit: LATAM, US B2B SaaS, AE/SDR/CSM/RevOps/Solutions roles | **IMPLEMENTED_OFFLINE** in 13H.4 |
+| **P1** | [Near jobs](https://www.hirewithnear.com/find-a-job) | VERIFIED product fit; technical contract remains unknown | Public listings, no official reusable API/feed verified | LATAM-only candidates, US employers and strong sales/CS mix | **REQUEST_ACCESS** |
 | **P2** | [Interfell](https://www.interfell.com/profesionales) | PARTIALLY_VERIFIED | Candidate registration precedes platform access; no public feed verified | LATAM remote, startups/fintech/software and some tech-commercial roles; more tech-heavy | **DO_NOT_IMPLEMENT** until an official public feed exists |
 | **P2** | [Startup.jobs](https://startup.jobs/api) | VERIFIED structured API/RSS/MCP | Public API/RSS advertised; attribution required | Strong startup corpus and sales feeds, but not LATAM-specific and likely overlaps global boards | **NEEDS_TECHNICAL_VALIDATION** after LATAM wave |
 | **P2** | [YC Jobs](https://www.ycombinator.com/jobs) | VERIFIED public candidate product | No official public job-search API/feed verified | Excellent B2B/startup and sales quality; LATAM eligibility is sparse and must be evaluated per job | **DO_NOT_IMPLEMENT** without an official automation contract |
@@ -278,7 +277,7 @@ Salary must be preserved without currency conversion; location and remote
 modality must remain structured; missing fields remain UNKNOWN. This is a
 zero-paid-dependency integration under the officially documented public facet.
 
-### Gupy — P1 / NEEDS_TECHNICAL_VALIDATION
+### Gupy — DEFER / LOW PRIORITY
 
 Two products must not be conflated:
 
@@ -303,12 +302,21 @@ boundary that validates tool results into `RawJobRecord` batches and then uses
 the normal adapter/pipeline. Only after its schema and unattended authorization
 are validated should a protocol-neutral execution definition join the registry.
 It must remain observational, and no candidate profile or application action
-should be automated.
+should be automated. For this project its roadmap priority is now low: the
+objective is human recruiting progress per application, not maximum raw vacancy
+volume. This does not imply that Gupy is ineffective or that candidates are not
+hired through it; integration is simply deferred behind focused LATAM-to-US
+sources.
 
 A fallback is Company Registry metadata for known Gupy tenant career pages.
 That would be tenant-scoped and may have better lifecycle semantics, but no
 official anonymous tenant feed was verified here. Do not scrape career pages or
 reuse the employer Bearer API.
+
+The complete 13H.3 comparison, technical evidence, data-quality matrices,
+future `publisher_model` capability and Source Outcome Quality design are in
+[`LATAM_RECRUITING_SOURCES.md`](LATAM_RECRUITING_SOURCES.md). The resulting
+decision is **13H.4 — LatamCent official Ashby board integration**.
 
 ### HireLATAM — P1 / NEEDS_ACCESS
 
@@ -414,27 +422,21 @@ authorized agency feed becomes available, decide whether to add the type or a
 
 1. Submit Torre's official professional API private-beta access request. Do not
    pay or agree to employer/company API access for this use case.
-2. Connect/test Gupy candidate MCP manually in a supported client and record
-   tool names, schemas, pagination, authorization persistence and limits. Do not
-   provide candidate documents or permit application actions during validation.
-3. Ask HireLATAM, Somewhere, LatamCent and Near whether they offer an official
+2. Gupy candidate MCP validation is deferred; do not provide candidate
+   documents or permit application actions merely to accelerate this roadmap.
+3. Ask HireLATAM, Somewhere and Near whether they offer an official
    candidate-facing RSS/API and permit low-frequency personal aggregation with
    attribution. Do not ask them to disclose workspace API keys.
 4. No manual access action is required for Get on Board's public facet.
 
 ### Recommended Wave 1 order
 
-1. **13H.2 — Get on Board public API.** Implement one conservative public jobs
-   query/page, offline adapter fixtures, attribution and an opt-in manual demo.
-2. **13H.3 — Gupy candidate MCP technical validation, not production enablement.**
-   Capture the authorized tool contract and decide whether a protocol adapter is
-   deterministic enough for weekly ingestion.
-3. **13H.4 — Recruiting-board access pilot.** Use HireLATAM first if its owner
-   provides an official feed/authorization; otherwise LatamCent, Near or
-   Somewhere may take the slot. No access means no implementation.
+1. **13H.2 — Get on Board public API (implemented and real-validated).**
+2. **13H.3 — LATAM recruiting-source access research (completed).**
+3. **13H.4 — LatamCent official Ashby board integration (implemented offline).**
+   Uses the documented public posting API; no WordPress/HTML scraping.
 4. **13H.5 — Torre authorized pilot**, only if private-beta access is granted.
 
-The exact next implementation is therefore **13H.2 Get on Board**. It is the
-only high-fit LATAM candidate in this pass with verified public, structured,
-no-auth access explicitly intended for published-job search and third-party job
-display.
+The next validation is a manual LatamCent demo against the real board. HireLATAM
+and Near access requests can proceed independently; Somewhere remains monitored
+and Gupy remains deferred.

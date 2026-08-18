@@ -76,7 +76,7 @@ class SourceContributionTests(unittest.TestCase):
         self.assertEqual(list(result.contributions), list(GLOBAL_SOURCE_ORDER))
         self.assertEqual(
             [result.contributions[item].incremental_unique for item in GLOBAL_SOURCE_ORDER],
-            [2, 0, 2, 3, 0, None],
+            [2, 0, 2, 3, 0, None, None],
         )
         himalayas = result.contributions["himalayas"]
         self.assertEqual(himalayas.unique_contributed, 5)

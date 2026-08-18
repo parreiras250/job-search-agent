@@ -1488,9 +1488,9 @@ PYTHONPATH=src python3 -m daniel_job_agent.provenance_demo
 
 ### Contribuição incremental das fontes globais
 
-A medição da Etapa 13G.2 atribui cada opportunity deduplicada à primeira source
-que a observou na ordem fixa Jobicy, Remotive, We Work Remotely, Himalayas,
-RemoteOK e Get on Board.
+A medição atribui cada opportunity deduplicada à primeira source que a observou
+na ordem fixa Jobicy, Remotive, We Work Remotely, Himalayas, RemoteOK, Get on
+Board e LatamCent.
 Ela mostra unique, KEEP, REVIEW, REJECT, relevant (`KEEP + REVIEW`), overlap e
 eficiência por request sem alterar automaticamente nenhuma source. Greenhouse
 tenants não fazem parte dessa baseline. Para executar manualmente a medição real:
@@ -1518,6 +1518,19 @@ mundial ou brasileira. Demonstração manual real:
 PYTHONPATH=src python3 -m daniel_job_agent.getonboard_demo
 ```
 
+A Etapa 13H.4 registra LatamCent como o primeiro tenant do componente Ashby
+reutilizável. A source executa um único `GET` público para o board configurado,
+com `includeCompensation=true`, sem autenticação, paginação ou scraping. O
+publisher é LatamCent e o provider é Ashby; como o contrato público não fornece
+o empregador, o adapter usa a indicação honesta `Employer not disclosed
+(published by LatamCent)` e não tenta extrair empresa da descrição. Ausência de
+localização vira `Location not specified`, nunca `Worldwide`; elegibilidade
+brasileira permanece desconhecida. Execução manual real:
+
+```bash
+PYTHONPATH=src python3 -m daniel_job_agent.latamcent_demo
+```
+
 Calibração totalmente offline:
 
 ```bash
@@ -1540,7 +1553,7 @@ mas sua qualidade depende da calibração de Career Fit e dos hard gates.
   proteção explícita contra falsos positivos das famílias técnicas.
 - Os adapters aceitam apenas os três formatos fictícios documentados.
 - O registry operacional contém Jobicy, Remotive, We Work Remotely, Himalayas,
-  RemoteOK e Get on Board por padrão.
+  RemoteOK, Get on Board e LatamCent/Ashby por padrão.
   Greenhouse só entra no discovery genérico quando tenants do piloto são
   configurados explicitamente (máximo de cinco); Lever permanece isolado.
 - O nome da empresa precisa ser informado junto com o token ou slug porque as
@@ -1595,5 +1608,16 @@ mas sua qualidade depende da calibração de Career Fit e dos hard gates.
 
 ## Próxima pequena etapa sugerida
 
-Executar primeiro um pull manual controlado e conferir o resumo antes de pensar
-em histórico de sincronizações ou resolução avançada de edição concorrente.
+Executar manualmente a demo LatamCent para validar o payload real antes de
+qualquer ampliação de tenants Ashby. A pesquisa comparativa está em
+[`docs/LATAM_RECRUITING_SOURCES.md`](docs/LATAM_RECRUITING_SOURCES.md).
+
+HireLATAM e Near permanecem `REQUEST_ACCESS`; Somewhere fica `MONITOR` até haver
+acesso oficial ao workspace RecruitCRM. Gupy foi movida para `DEFER / LOW
+PRIORITY` neste projeto porque o roadmap passa a priorizar avanço humano por
+aplicação, e não volume bruto. Isso não é uma afirmação de que a plataforma não
+funciona ou não gera contratações.
+
+`Source Outcome Quality` permanece apenas como desenho: futuramente deverá
+comparar aplicações, recruiter screens, entrevistas e ofertas por source, sempre
+mostrando numeradores/denominadores e evitando conclusões com amostras pequenas.

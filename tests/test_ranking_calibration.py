@@ -103,6 +103,12 @@ class RankingCalibrationTests(unittest.TestCase):
             "Artificial Intelligence Specialist",
             "Estimator",
             "Software Engineer",
+            "Procurement Expert",
+            "Adobe InDesign Expert",
+            "InDesign Automation Developer",
+            "Director of Trust & Safety",
+            "Head of Risk",
+            "Software Developer",
         )
         for role in roles:
             with self.subTest(role=role):
@@ -111,6 +117,26 @@ class RankingCalibrationTests(unittest.TestCase):
                 )
                 self.assertEqual(result.retention_decision, RetentionDecision.REJECT)
                 self.assertEqual(result.decision_reasons, ["Role family is outside target profile"])
+
+    def test_ambiguous_gtm_title_is_review_not_blindly_rejected(self):
+        result = self.evaluate(job("Revenue Growth Consultant"))
+        self.assertEqual(result.retention_decision, RetentionDecision.REVIEW)
+        self.assertEqual(result.decision_reasons, ["Role title needs manual career-fit review"])
+
+    def test_relevant_secondary_and_gtm_adjacent_titles_survive_role_gate(self):
+        roles = (
+            "Sales Development Representative",
+            "Customer Success Manager",
+            "Technical Account Manager",
+            "Revenue Operations Analyst",
+            "Sales Operations Specialist",
+            "Solutions Engineer",
+            "Pre-Sales Consultant",
+        )
+        for role in roles:
+            with self.subTest(role=role):
+                result = self.evaluate(job(role))
+                self.assertNotEqual(result.retention_decision, RetentionDecision.REJECT)
 
     def test_latam_sdr_remains_relevant(self):
         result = self.evaluate(job("Sales Development Representative"))
@@ -251,7 +277,9 @@ class RankingCalibrationTests(unittest.TestCase):
         self.assertIn("Career Fit | Eligibility | TZ Fit | Risk | Decision", output)
         self.assertIn("Commission-only Account Executive", output)
         self.assertIn("Maintenance Planner", output)
-        self.assertEqual(len(output.splitlines()), 21)
+        self.assertIn("Adobe InDesign Expert", output)
+        self.assertIn("Ambiguous Growth Consultant", output)
+        self.assertEqual(len(output.splitlines()), 28)
 
 
 class RankingMigrationCompatibilityTests(unittest.TestCase):

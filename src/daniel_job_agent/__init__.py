@@ -44,6 +44,7 @@ from .lifecycle import (
     reconcile_lifecycle,
 )
 from .ingestion import (
+    AshbyJobAdapter,
     BaseJobAdapter,
     BatchIngestionResult,
     GenericJobAdapter,
@@ -151,6 +152,7 @@ from .search_strategy import (
     recommend_search_strategy,
 )
 from .source_registry import (
+    AshbyTenantConfig,
     GreenhouseTenantConfig,
     LifecycleAuthority,
     SourceCapabilities,
@@ -158,6 +160,7 @@ from .source_registry import (
     SourceRegistry,
     SourceType,
     create_default_source_registry,
+    create_ashby_definitions,
     create_greenhouse_pilot_definitions,
 )
 from .source_contribution import (
@@ -168,6 +171,8 @@ from .source_contribution import (
     measure_source_contributions,
 )
 from .sources import (
+    ASHBY_API_BASE_URL,
+    AshbyJobSource,
     GreenhouseJobSource,
     GetOnBoardJobSource,
     HimalayasJobSource,
@@ -183,6 +188,7 @@ from .sources import (
     SourceResult,
     SourceStatus,
     build_greenhouse_jobs_url,
+    build_ashby_jobs_url,
     build_getonboard_jobs_url,
     build_himalayas_jobs_url,
     build_jobicy_jobs_url,
@@ -191,6 +197,10 @@ from .sources import (
 )
 
 __all__ = [
+    "ASHBY_API_BASE_URL",
+    "AshbyJobAdapter",
+    "AshbyJobSource",
+    "AshbyTenantConfig",
     "ApplicationStatus",
     "ApplicationTracking",
     "AgentRunResult",
@@ -307,6 +317,7 @@ __all__ = [
     "are_probably_duplicates",
     "calculate_match_score",
     "build_greenhouse_jobs_url",
+    "build_ashby_jobs_url",
     "build_getonboard_jobs_url",
     "build_himalayas_jobs_url",
     "build_lever_postings_url",
@@ -322,6 +333,7 @@ __all__ = [
     "create_broad_discovery",
     "create_default_search_strategy",
     "create_default_source_registry",
+    "create_ashby_definitions",
     "create_greenhouse_pilot_definitions",
     "create_full_search_strategy",
     "create_search_strategy",

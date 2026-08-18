@@ -8,6 +8,7 @@ from types import MappingProxyType
 from typing import Callable, Mapping
 
 from .ingestion import (
+    AshbyJobAdapter,
     BaseJobAdapter,
     GreenhouseJobAdapter,
     GetOnBoardJobAdapter,
@@ -18,6 +19,7 @@ from .ingestion import (
     WeWorkRemotelyJobAdapter,
 )
 from .sources import (
+    AshbyJobSource,
     GreenhouseJobSource,
     GetOnBoardJobSource,
     HimalayasJobSource,
@@ -67,6 +69,34 @@ class GreenhouseTenantConfig:
             raise ValueError("company_name cannot be empty")
         if not self.board_token.strip():
             raise ValueError("board_token cannot be empty")
+        if self.priority < 0:
+            raise ValueError("priority cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class AshbyTenantConfig:
+    """Configuração explícita de um publisher ou empregador em Ashby."""
+
+    tenant_key: str
+    publisher_name: str
+    board_name: str
+    employer_name: str | None = None
+    enabled: bool = True
+    priority: int = 100
+
+    def __post_init__(self) -> None:
+        if (
+            not self.tenant_key
+            or self.tenant_key != self.tenant_key.strip().casefold()
+            or any(character not in "abcdefghijklmnopqrstuvwxyz0123456789-_" for character in self.tenant_key)
+        ):
+            raise ValueError("tenant_key must be a lowercase slug")
+        if not self.publisher_name.strip():
+            raise ValueError("publisher_name cannot be empty")
+        if not self.board_name.strip():
+            raise ValueError("board_name cannot be empty")
+        if self.employer_name is not None and not self.employer_name.strip():
+            raise ValueError("employer_name cannot be empty when provided")
         if self.priority < 0:
             raise ValueError("priority cannot be negative")
 
@@ -220,6 +250,62 @@ def create_greenhouse_pilot_definitions(
     return definitions
 
 
+def create_ashby_definitions(
+    tenants: list[AshbyTenantConfig] | tuple[AshbyTenantConfig, ...],
+    *,
+    source_overrides: Mapping[str, JobSource] | None = None,
+) -> list[SourceDefinition]:
+    """Cria sources Ashby reutilizáveis sem assumir que publisher é employer."""
+
+    overrides = dict(source_overrides or {})
+    definitions: list[SourceDefinition] = []
+    for tenant in tenants:
+        source_id = tenant.tenant_key
+        source_instance = f"ashby:{tenant.tenant_key}"
+
+        def source_factory(
+            config: AshbyTenantConfig = tenant,
+            definition_id: str = source_id,
+        ) -> JobSource:
+            return overrides.get(definition_id) or AshbyJobSource(config.board_name)
+
+        definitions.append(SourceDefinition(
+            source_id=source_id,
+            display_name=tenant.publisher_name.strip(),
+            source_type=SourceType.TENANT_BOARD,
+            source_family="ashby",
+            source_instance=source_instance,
+            capabilities=SourceCapabilities(
+                tenant_scoped=True,
+                supports_query=False,
+                supports_pagination=False,
+                provides_description=True,
+                provides_salary=True,
+                provides_posted_date=True,
+                provides_external_id=False,
+                provides_direct_url=True,
+                lifecycle_authority=LifecycleAuthority.OBSERVATIONAL,
+                requires_auth=False,
+                requires_attribution=False,
+            ),
+            source_factory=source_factory,
+            adapter_factory=lambda config=tenant: AshbyJobAdapter(
+                config.publisher_name, employer_name=config.employer_name
+            ),
+            default_config={
+                "tenant_key": tenant.tenant_key,
+                "publisher_name": tenant.publisher_name.strip(),
+                "board_name": tenant.board_name.strip(),
+                "employer_name": tenant.employer_name,
+                "include_compensation": True,
+            },
+            enabled=tenant.enabled,
+            priority=tenant.priority,
+            request_budget=1,
+        ))
+    return definitions
+
+
 def create_default_source_registry(
     *,
     jobicy_config: Mapping[str, object] | None = None,
@@ -234,8 +320,10 @@ def create_default_source_registry(
     getonboard_source: JobSource | None = None,
     greenhouse_tenants: tuple[GreenhouseTenantConfig, ...] = (),
     greenhouse_sources: Mapping[str, JobSource] | None = None,
+    ashby_tenants: tuple[AshbyTenantConfig, ...] | None = None,
+    ashby_sources: Mapping[str, JobSource] | None = None,
 ) -> SourceRegistry:
-    """Registra as seis fontes globais e tenants explícitos."""
+    """Registra as fontes operacionais e tenants explícitos."""
 
     jobicy_values = {
         "geo": "latam", "industry": "seller", "count": 100, "tag": None,
@@ -370,6 +458,22 @@ def create_default_source_registry(
             request_budget=1,
         ),
     ]
+    explicit_source_overrides = any(source is not None for source in (
+        jobicy_source, remotive_source, wwr_source, himalayas_source,
+        remoteok_source, getonboard_source,
+    ))
+    configured_ashby = ashby_tenants if ashby_tenants is not None else (
+        () if explicit_source_overrides and ashby_sources is None else (
+            AshbyTenantConfig(
+                tenant_key="latamcent",
+                publisher_name="LatamCent",
+                board_name="latamcent",
+            ),
+        )
+    )
+    definitions.extend(
+        create_ashby_definitions(configured_ashby, source_overrides=ashby_sources)
+    )
     definitions.extend(
         create_greenhouse_pilot_definitions(
             greenhouse_tenants, source_overrides=greenhouse_sources

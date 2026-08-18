@@ -14,6 +14,7 @@ _LABELS = {
     "himalayas": "Himalayas",
     "remoteok": "RemoteOK",
     "getonboard": "Get on Board",
+    "latamcent": "LatamCent (Ashby)",
 }
 
 
@@ -48,7 +49,9 @@ def format_source_efficiency(result: SourceContributionResult) -> str:
 
     lines.append("Overlap matrix")
     for (left, right), count in result.overlap_matrix.items():
-        lines.append(f"{_LABELS[left]} ↔ {_LABELS[right]}: {count}")
+        lines.append(
+            f"{_LABELS.get(left, left)} ↔ {_LABELS.get(right, right)}: {count}"
+        )
     lines.extend(["", "Himalayas delta"])
     delta = result.himalayas_delta
     if delta is None:

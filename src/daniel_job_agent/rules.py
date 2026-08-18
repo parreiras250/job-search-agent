@@ -152,11 +152,30 @@ _IRRELEVANT_ROLES = (
     "customer service agent",
     "customer support representative",
     "graphic designer",
+    "indesign",
+    "graphic design",
+    "developer",
+    "procurement",
+    "trust & safety",
+    "trust and safety",
+    "risk",
+    "compliance",
+    "customer support",
+    "customer service",
 )
 _PROTECTED_TECHNICAL_SALES_ROLES = (
     "sales engineer",
     "solutions engineer",
     "technical account manager",
+)
+_PROTECTED_GTM_OPERATIONS_ROLES = (
+    "revenue operations",
+    "revenue ops",
+    "revops",
+    "sales operations",
+    "sales ops",
+    "customer success operations",
+    "customer success ops",
 )
 
 
@@ -173,12 +192,25 @@ def is_clearly_irrelevant_role(role: str) -> bool:
     title = _comparable(role)
     if any(
         _contains_phrase(title, protected)
-        for protected in _PROTECTED_TECHNICAL_SALES_ROLES
+        for protected in (
+            *_PROTECTED_TECHNICAL_SALES_ROLES,
+            *_PROTECTED_GTM_OPERATIONS_ROLES,
+        )
     ):
+        return False
+    family = classify_role_family(role)
+    if family in {
+        RoleFamily.CLOSING_SALES,
+        RoleFamily.SALES_DEVELOPMENT,
+        RoleFamily.ACCOUNT_MANAGEMENT,
+        RoleFamily.SALES_LEADERSHIP,
+        RoleFamily.PRE_SALES,
+        RoleFamily.CUSTOMER_SUCCESS,
+        RoleFamily.PARTNERSHIPS,
+    }:
         return False
     if any(_contains_phrase(title, item) for item in _IRRELEVANT_ROLES):
         return True
-    family = classify_role_family(role)
     if family in {
         RoleFamily.MARKETING,
         RoleFamily.ENGINEERING,
@@ -959,7 +991,15 @@ def _final_decision(
         OpportunityRisk.NO_BASE_SALARY,
         OpportunityRisk.UNPAID,
     }
-    if family in profile.out_of_focus_role_families or is_clearly_irrelevant_role(job.role):
+    title = _comparable(job.role)
+    protected_gtm_operations = any(
+        _contains_phrase(title, phrase)
+        for phrase in _PROTECTED_GTM_OPERATIONS_ROLES
+    )
+    if (
+        family in profile.out_of_focus_role_families
+        and not protected_gtm_operations
+    ) or is_clearly_irrelevant_role(job.role):
         return RetentionDecision.REJECT, ["Role family is outside target profile"]
     if eligibility is EligibilityStatus.INELIGIBLE:
         if title_signal is not None and title_signal.explicit_worker_restriction:

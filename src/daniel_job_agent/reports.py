@@ -347,6 +347,8 @@ def format_weekly_report(report: WeeklyReport) -> str:
             "weworkremotely": "We Work Remotely",
             "himalayas": "Himalayas",
             "remoteok": "RemoteOK",
+            "getonboard": "Get on Board",
+            "latamcent": "LatamCent (Ashby)",
         }.get(contribution.source_id, contribution.source_id)
         if contribution.status != "SUCCESS":
             lines.append(f"- **{label}: contribution unavailable (FAILED)**")

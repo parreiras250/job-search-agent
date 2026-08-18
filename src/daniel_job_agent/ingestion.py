@@ -412,6 +412,101 @@ class GreenhouseJobAdapter(BaseJobAdapter):
         return super().adapt(mapped)
 
 
+class AshbyJobAdapter(BaseJobAdapter):
+    """Converte o contrato público Ashby sem confundir publisher e employer."""
+
+    source_name = "Ashby public job board"
+    report_extended_optional_fields = True
+
+    def __init__(
+        self,
+        publisher_name: str,
+        *,
+        employer_name: str | None = None,
+    ) -> None:
+        if not publisher_name.strip():
+            raise ValueError("publisher_name cannot be empty")
+        if employer_name is not None and not employer_name.strip():
+            raise ValueError("employer_name cannot be empty when provided")
+        self.publisher_name = publisher_name.strip()
+        self.employer_name = employer_name.strip() if employer_name else None
+
+    @staticmethod
+    def _salary_component(
+        record: RawJobRecord,
+    ) -> tuple[object, object, object, object, list[IngestionWarning]]:
+        compensation = record.get("compensation")
+        if compensation is None:
+            return None, None, None, None, []
+        if not isinstance(compensation, Mapping):
+            return None, None, None, None, [IngestionWarning(
+                "compensation", "compensation must be an object", compensation
+            )]
+        components = compensation.get("summaryComponents")
+        if components is None:
+            return None, None, None, None, []
+        if not isinstance(components, list):
+            return None, None, None, None, [IngestionWarning(
+                "compensation",
+                "compensation.summaryComponents must be a list",
+                components,
+            )]
+        salaries = [
+            item for item in components
+            if isinstance(item, Mapping) and item.get("compensationType") == "Salary"
+        ]
+        malformed = any(not isinstance(item, Mapping) for item in components)
+        warnings = ([IngestionWarning(
+            "compensation",
+            "compensation.summaryComponents contains an invalid entry",
+            components,
+        )] if malformed else [])
+        if not salaries:
+            return None, None, None, None, warnings
+        salary = salaries[0]
+        return (
+            salary.get("minValue"), salary.get("maxValue"),
+            salary.get("currencyCode"), salary.get("interval"), warnings,
+        )
+
+    def adapt(self, record: RawJobRecord) -> IngestionResult:
+        salary_min, salary_max, currency, period, extra_warnings = (
+            self._salary_component(record)
+        )
+        employer = self.employer_name or (
+            f"Employer not disclosed (published by {self.publisher_name})"
+        )
+        location = record.get("location")
+        if not isinstance(location, str) or not location.strip():
+            location = "Location not specified"
+        department = record.get("department")
+        team = record.get("team")
+        categories = [
+            value.strip() for value in (department, team)
+            if isinstance(value, str) and value.strip()
+        ] or None
+        mapped: dict[str, object] = {
+            "company": employer,
+            "role": record.get("title"),
+            "job_url": record.get("jobUrl") or record.get("applyUrl"),
+            "location": location,
+            "description": record.get("descriptionPlain") or record.get("descriptionHtml"),
+            "employment_type": record.get("employmentType"),
+            "date_posted": record.get("publishedAt"),
+            "salary_min": salary_min,
+            "salary_max": salary_max,
+            "salary_currency": currency,
+            "salary_period": period,
+            "industries_mentioned": categories,
+            "remote": record.get("isRemote"),
+            "brazil_eligible": None,
+        }
+        result = super().adapt(mapped)
+        if result.opportunity is not None:
+            result.opportunity.source = self.publisher_name
+        return replace(result, warnings=[*result.warnings, *extra_warnings])
+
+
 class LeverJobAdapter(BaseJobAdapter):
     """Converte o formato real da Postings API pública do Lever."""
 

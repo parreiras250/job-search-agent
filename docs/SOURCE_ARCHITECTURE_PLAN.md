@@ -487,11 +487,11 @@ Recruiting-agency boards expose cross-client corpora and may eventually justify
 `RECRUITING_BOARD` or, preferably at first, a publisher-model capability. No enum
 change is made until an authorized real feed establishes the distinction.
 
-Proposed sequence:
+Original sequence, updated by the outcome-focused 13H.3 research:
 
 1. 13H.2 — Get on Board public API integration.
-2. 13H.3 — Gupy candidate MCP contract validation.
-3. 13H.4 — authorized recruiting-board pilot, conditional on access.
+2. 13H.3 — LATAM recruiting-source access research.
+3. 13H.4 — LatamCent official Ashby board integration (implemented offline).
 4. 13H.5 — Torre pilot, conditional on private-beta access.
 
 ### 13H.2 — Get on Board public API (implemented)
@@ -508,6 +508,54 @@ observation, employment modality, seniority and structured salary. It does not
 annualize salary, infer OTE, or turn remote work into worldwide/Brazil
 eligibility. The source is observational; a matching direct Greenhouse tenant
 remains authoritative. SQLite stays at schema version 8.
+
+### 13H.3 — LATAM recruiting-source access research (completed)
+
+The comparison prioritizes downstream recruiting outcomes over raw vacancy
+volume. Gupy is now `DEFER / LOW PRIORITY` for this project without making any
+claim about its general effectiveness.
+
+HireLATAM and Near have excellent LATAM-to-US candidate fit but require an
+official access agreement or feed. Somewhere uses RecruitCRM, whose API requires
+a paid workspace token, and its corpus is global. LatamCent has the strongest
+B2B SaaS/GTM specialization and publishes through Ashby's documented public Job
+Postings API. Therefore the next concrete step is **13H.4 — LatamCent official
+Ashby board integration**, using a generic public-board adapter rather than
+WordPress/HTML scraping.
+
+The future `publisher_model` dimension (`JOB_BOARD`, `RECRUITING_AGENCY`,
+`TALENT_MARKETPLACE`, `DIRECT_EMPLOYER`, `ATS`) remains design-only and
+orthogonal to `SourceType`. `Source Outcome Quality` will eventually compare
+application-to-screen/interview/offer funnels with explicit denominators and
+sample-size warnings; it must not automatically alter ranking or source
+priority. See `LATAM_RECRUITING_SOURCES.md`.
+
+### 13H.4 — LatamCent via generic Ashby public board (implemented offline)
+
+`AshbyJobSource` accepts an explicit board name and performs one public GET to
+`/posting-api/job-board/{board}?includeCompensation=true`.
+`AshbyJobAdapter` is tenant-configured and contains no LatamCent-specific
+parsing. LatamCent is registered as `source_id=latamcent`,
+`source_family=ashby`, `source_instance=ashby:latamcent`, with a one-request
+budget and `OBSERVATIONAL` lifecycle authority.
+
+The authority choice is deliberate: the Ashby response is a snapshot of what
+LatamCent currently publishes, but LatamCent is an intermediary rather than the
+confirmed employer. Existing multi-source lifecycle continues to keep the
+logical opportunity open while another known observation remains active.
+
+The official response has no employer field. The adapter therefore records an
+explicit undisclosed-employer label tied to the publisher and never treats
+LatamCent as the employer or mines descriptions for client names. This limits
+company/title deduplication; URL-equivalent cross-source observations still
+deduplicate and preserve the earlier true employer. `jobUrl` is retained as
+provenance. The separate `applyUrl` cannot be persisted because the current
+model has no dedicated apply-URL field; no schema migration was introduced.
+
+The official page documents neither pagination, authentication, rate limits,
+attribution requirements nor a separate posting ID. Unknown fields are ignored,
+missing optional data remains unknown, and compensation is read only from the
+documented salary summary components. Schema remains version 8.
 
 ### 13H — Lifecycle authority
 

@@ -27,6 +27,7 @@ REMOTIVE_API_BASE_URL = "https://remotive.com/api/remote-jobs"
 HIMALAYAS_SEARCH_API_URL = "https://himalayas.app/jobs/api/search"
 REMOTEOK_API_URL = "https://remoteok.com/api"
 GETONBOARD_API_BASE_URL = "https://www.getonbrd.com/api/v0"
+ASHBY_API_BASE_URL = "https://api.ashbyhq.com/posting-api/job-board"
 WWR_SALES_MARKETING_RSS_URL = (
     "https://weworkremotely.com/categories/remote-sales-and-marketing-jobs.rss"
 )
@@ -205,6 +206,20 @@ def build_getonboard_jobs_url(
     return f"{GETONBOARD_API_BASE_URL}/search/jobs?{urlencode(parameters)}"
 
 
+def build_ashby_jobs_url(
+    board_name: str, *, include_compensation: bool = True
+) -> str:
+    """Monta o endpoint público oficial de um único job board Ashby."""
+
+    normalized = board_name.strip()
+    if not normalized or re.fullmatch(r"[A-Za-z0-9_-]+", normalized) is None:
+        raise ValueError(
+            "board_name must contain only letters, numbers, hyphens, or underscores"
+        )
+    compensation = "true" if include_compensation else "false"
+    return f"{ASHBY_API_BASE_URL}/{normalized}?includeCompensation={compensation}"
+
+
 def _fetch_json(
     *,
     source_name: str,
@@ -313,6 +328,52 @@ class GreenhouseJobSource(JobSource):
         if not records:
             return SourceResult(status=SourceStatus.NO_JOBS, records=[])
         return SourceResult(status=SourceStatus.SUCCESS, records=records)
+
+
+class AshbyJobSource(JobSource):
+    """Lê todas as vagas atualmente publicadas de um job board Ashby."""
+
+    def __init__(
+        self,
+        board_name: str,
+        *,
+        include_compensation: bool = True,
+        timeout: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+        transport: HttpTransport | None = None,
+    ) -> None:
+        if timeout <= 0:
+            raise ValueError("timeout must be greater than zero")
+        self.board_name = board_name.strip()
+        self.include_compensation = include_compensation
+        self.url = build_ashby_jobs_url(
+            board_name, include_compensation=include_compensation
+        )
+        self.timeout = timeout
+        self.transport = transport or UrllibHttpTransport()
+
+    def fetch(self) -> SourceResult:
+        payload, error = _fetch_json(
+            source_name="Ashby",
+            url=self.url,
+            timeout=self.timeout,
+            transport=self.transport,
+        )
+        if error is not None:
+            return error
+        if (
+            not isinstance(payload, dict)
+            or not isinstance(payload.get("apiVersion"), str)
+            or not isinstance(payload.get("jobs"), list)
+        ):
+            return SourceResult(
+                SourceStatus.INVALID_PAYLOAD,
+                [],
+                "Ashby payload must contain apiVersion and a jobs list",
+            )
+        records = [item for item in payload["jobs"] if isinstance(item, dict)]
+        if not records:
+            return SourceResult(SourceStatus.NO_JOBS, [])
+        return SourceResult(SourceStatus.SUCCESS, records)
 
 
 class LeverJobSource(JobSource):
